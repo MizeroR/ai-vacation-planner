@@ -17,7 +17,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 def create_access_token(data: dict) -> str:
     payload = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    payload.update({"exp": expire})
+    payload.update({"exp": int(expire.timestamp())})  # Unix timestamp avoids timezone comparison bugs
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 
 
