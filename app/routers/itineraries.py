@@ -4,8 +4,9 @@ from app.database import get_db
 from app.models.itinerary import Itinerary
 from app.models.trip import Trip
 from app.models.user import User
-from app.schemas.itinerary import ItineraryCreate, ItineraryResponse
+from app.schemas.itinerary import ItineraryCreate, ItineraryGenerateAI, ItineraryResponse
 from app.core.dependencies import get_current_user
+from app.services.llm import generate_itinerary
 
 router = APIRouter(prefix="/itineraries", tags=["Itineraries"])
 
@@ -48,4 +49,37 @@ def get_itinerary(trip_id: int, db: Session = Depends(get_db), current_user: Use
         trip_id=itinerary.trip_id,
         itinerary=itinerary.days,
         message="Itinerary retrieved successfully",
+    )
+
+
+@router.post("/generate", status_code=status.HTTP_201_CREATED, response_model=ItineraryResponse)
+def generate_ai_itinerary(body: ItineraryGenerateAI, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    trip = db.query(Trip).filter(Trip.id == body.trip_id, Trip.user_id == current_user.id).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+
+    if db.query(Itinerary).filter(Itinerary.trip_id == body.trip_id).first():
+        raise HTTPException(status_code=400, detail="Itinerary already exists for this trip")
+
+    # Call Claude to generate itinerary
+    ai_generated_days = generate_itinerary(
+        destination=trip.destination,
+        days=trip.days,
+        budget=trip.budget,
+        trip_style=trip.trip_style,
+    )
+
+    itinerary = Itinerary(
+        trip_id=body.trip_id,
+        days=ai_generated_days,
+    )
+    db.add(itinerary)
+    db.commit()
+    db.refresh(itinerary)
+
+    return ItineraryResponse(
+        trip_id=itinerary.trip_id,
+        itinerary=itinerary.days,
+        message="Itinerary generated successfully by AI",
+        ai_generated=True,
     )

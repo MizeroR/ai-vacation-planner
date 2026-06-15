@@ -11,7 +11,12 @@ class ItineraryCreate(BaseModel):
     days: list[ItineraryDay]
 
 
+class ItineraryGenerateAI(BaseModel):
+    trip_id: int
+
+
 class ItineraryResponse(BaseModel):
     trip_id: int
     itinerary: list[ItineraryDay]
     message: str
+    ai_generated: bool = False
