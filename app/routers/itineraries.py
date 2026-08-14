@@ -61,13 +61,15 @@ def generate_ai_itinerary(body: ItineraryGenerateAI, db: Session = Depends(get_d
     if db.query(Itinerary).filter(Itinerary.trip_id == body.trip_id).first():
         raise HTTPException(status_code=400, detail="Itinerary already exists for this trip")
 
-    # Call Claude to generate itinerary
-    ai_generated_days = generate_itinerary(
-        destination=trip.destination,
-        days=trip.days,
-        budget=trip.budget,
-        trip_style=trip.trip_style,
-    )
+    try:
+        ai_generated_days = generate_itinerary(
+            destination=trip.destination,
+            days=trip.days,
+            budget=trip.budget,
+            trip_style=trip.trip_style,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
 
     itinerary = Itinerary(
         trip_id=body.trip_id,

@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -10,10 +12,10 @@ class TripCreate(BaseModel):
 
 
 class TripUpdate(BaseModel):
-    destination: str | None = None
-    days: int | None = None
-    budget: float | None = None
-    trip_style: str | None = None
+    destination: Optional[str] = None
+    days: Optional[int] = None
+    budget: Optional[float] = None
+    trip_style: Optional[str] = None
 
 
 class TripResponse(BaseModel):
