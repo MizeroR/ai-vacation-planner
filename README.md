@@ -138,11 +138,19 @@ Response:
   "itinerary": [
     {
       "day": 1,
-      "activities": ["Eiffel Tower visit and ascent", "Seine River evening cruise"]
+      "weather": "mostly clear",
+      "activities": [
+        {"name": "Eiffel Tower visit", "notes": "Go early to avoid queues"},
+        {"name": "Seine River cruise", "notes": "Best near sunset"}
+      ]
     },
     {
       "day": 2,
-      "activities": ["Louvre Museum morning tour", "Montmartre district exploration"]
+      "weather": "partly cloudy",
+      "activities": [
+        {"name": "Louvre Museum", "notes": "Book a timed entry"},
+        {"name": "Montmartre walk", "notes": "Keep this lighter if rain is likely"}
+      ]
     }
   ],
   "message": "Itinerary generated successfully by AI",
@@ -161,11 +169,12 @@ The backend uses **Claude (Anthropic's LLM)** to generate realistic, budget-cons
 1. User calls `POST /itineraries/generate` with just the `trip_id`
 2. Backend fetches trip details (destination, days, budget, style) from the database
 3. A detailed prompt is sent to Claude:
-   - Trip context (destination, days, budget)
-   - Constraints (stay within destination area, respect budget)
-   - Requirements (3-5 activities per day, include meals/rest)
-4. Claude generates a structured JSON itinerary
-5. Itinerary is parsed and saved to the database
+  - Trip context (destination, days, budget)
+  - Weather context from a lightweight Open-Meteo lookup
+  - Constraints (stay within destination area, respect budget)
+  - Requirements (3-5 activities per day, include meals/rest)
+4. Claude generates structured JSON with `days`, `weather`, and nested activity objects
+5. The backend validates the response with Pydantic, retries on invalid output, and saves only validated data to the database
 
 **Prompt Strategy:**
 
