@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.database import engine, Base
-from app.routers import auth, users, trips, itineraries
+from app.routers import auth, users, trips, itineraries, kb
 
 # import models so SQLAlchemy registers them before creating tables
 import app.models.user
@@ -19,6 +19,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(trips.router)
 app.include_router(itineraries.router)
+app.include_router(kb.router)
 
 
 @app.get("/", tags=["Health"])
