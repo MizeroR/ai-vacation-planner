@@ -32,7 +32,7 @@ app/
 
 ```bash
 # 1. Clone and enter the project
-git clone <repo-url>
+git clone https://github.com/MizeroR/ai-vacation-planner
 cd ai-vacation-planner
 
 # 2. Create virtual environment
