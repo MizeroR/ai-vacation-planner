@@ -25,7 +25,7 @@ def seed_kb(docs: List[DocSchema], current_user=Depends(get_current_user)):
     """
     items = [d.dict() for d in docs]
     try:
-        kb_add_documents(items)
+        kb.add_documents(items)
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
     return {"indexed": len(items)}
@@ -35,5 +35,5 @@ def query_kb(q: str, k: int = 3):
     """
     Query the knlowedge base for `q`. Returns top-k chunks with distance and metadata.
     """
-    results = kb.query(q, top_k)
+    results = kb.query(q, top_k=k)
     return results

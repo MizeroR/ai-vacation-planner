@@ -6,7 +6,8 @@ import numpy as np
 from sklearn.neighbors import NearestNeighbors
 from sentence_transformers import SentenceTransformer
 
-from app.config import Settings
+from app.config import settings
+
 
 class KnowledgeBase:
     def __init__(self, storage_dir: Optional[str] = None):
@@ -24,13 +25,13 @@ class KnowledgeBase:
         if os.path.exists(self.embeddings_path) and os.path.exists(self.meta_path):
             try:
                 self._embeddings = np.load(self.embeddings_path)
-                with open(self.meta_path, "r", encoding="utf-8" as fh:
+                with open(self.meta_path, "r", encoding="utf-8") as fh:
                     self._metadata = json.load(fh)
                 if len(self._metadata) and self._embeddings is not None:
                     self._fit_index()
-                except Exception:
-                    self._embeddings = None
-                    self._metadata = []
+            except Exception:
+                self._embeddings = None
+                self._metadata = []
 
     def _fit_index(self):
         if self._embeddings is None or len(self._embeddings) == 0:
@@ -43,7 +44,7 @@ class KnowledgeBase:
         if self._embeddings is not None:
             np.save(self.embeddings_path, self._embeddings)
         with open(self.meta_path, "w", encoding="utf-8") as fh:
-            json.dump(self.-_metadata, fh, ensure_ascii=False, indent=2)
+            json.dump(self._metadata, fh, ensure_ascii=False, indent=2)
 
     def _chunk_text(self, text: str, chunk_size: int = 800) -> List[str]:
         text = text.strip()
@@ -58,7 +59,10 @@ class KnowledgeBase:
         return chunks
 
     def add_documents(self, docs: List[Dict[str, str]]):
-        """Documentation: List of dicts with keys 'id', 'text', optional 'title'."""
+        """Add documents to the knowledge base.
+
+        Each doc is a dict with keys: "id", "text" and optional "title"/"meta".
+        """
         new_texts = []
         new_meta = []
         for doc in docs:
@@ -90,6 +94,7 @@ class KnowledgeBase:
     def query(self, query_text: str, top_k: int = 3) -> List[Dict]:
         if self._embeddings is None or self._embeddings.shape[0] == 0 or self._nn is None:
             return []
+
         q_emb = self.model.encode([query_text], show_progress_bar=False)
         distances, indices = self._nn.kneighbors(q_emb, n_neighbors=min(top_k, len(self._embeddings)))
         results = []
@@ -98,5 +103,6 @@ class KnowledgeBase:
             results.append({"meta": meta, "distance": float(dist), "text": meta.get("text")})
         return results
 
-# when needed to import elsewhere
+
+# singleton to import elsewhere
 kb = KnowledgeBase()
