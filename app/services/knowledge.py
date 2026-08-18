@@ -8,8 +8,6 @@ from sentence_transformers import SentenceTransformer
 
 from app.config import Settings
 
-class app.config import settings
-
 class KnowledgeBase:
     def __init__(self, storage_dir: Optional[str] = None):
         self.storage_dir = storage_dir or getattr(settings, "knowledge_base_dir", "data/kb")
