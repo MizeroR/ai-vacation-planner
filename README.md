@@ -32,7 +32,7 @@ app/
 
 ```bash
 # 1. Clone and enter the project
-git clone <repo-url>
+git clone https://github.com/MizeroR/ai-vacation-planner
 cd ai-vacation-planner
 
 # 2. Create virtual environment
@@ -190,3 +190,42 @@ The prompt includes:
 1. Get an API key from [console.anthropic.com](https://console.anthropic.com)
 2. Add it to your `.env` file: `ANTHROPIC_API_KEY=sk-ant-...`
 3. The system uses Claude 3.5 Sonnet for cost-effective, high-quality itineraries
+
+## Knowledge Base (RAG)
+
+This project includes a lightweight, file-backed Semantic Knowledge Base (KB) used to store travel guides, local tips, FAQs, and destination notes. The KB is embedded with `sentence-transformers` and searched with `scikit-learn` NearestNeighbors. The server retrieves relevant KB chunks and includes them in prompts sent to the LLM (Retrieval-Augmented Generation).
+
+Files and endpoints:
+- Service: `app/services/knowledge.py` — `kb.add_documents(docs)` and `kb.query(q, top_k)`
+- Router: `POST /kb/seed` — seed/index documents (protected)
+- Router: `GET /kb/query?q=...&k=3` — return top-k chunks (unprotected)
+
+Seeding example (protected):
+
+1. Register and login to get a token (see above). 2. Seed KB:
+
+```bash
+curl -X POST http://localhost:8000/kb/seed \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '[{"id":"paris-guide","title":"Paris tips","text":"Arrive early to the Louvre..."}]'
+```
+
+Query example:
+
+```bash
+curl 'http://localhost:8000/kb/query?q=paris&k=3'
+```
+
+How it integrates:
+- When generating an AI itinerary the server calls `kb.query(destination, top_k=3)` and appends the returned chunk texts to the LLM prompt under a `Travel knowledge` section. This gives Claude factual local context to improve suggestions.
+
+Live testing checklist
+- Start server: `uvicorn app.main:app --reload`
+- Register and login: get JWT token from `/auth/login`.
+- Seed the KB using `/kb/seed` (protected) and verify `/kb/query` returns seeded chunks.
+- Create a trip and call `/itineraries/generate` to confirm the LLM call succeeds and includes KB context in prompt.
+
+Notes
+- The KB stores embeddings and metadata under `data/kb/` by default. Do not commit large seeded data to the repository.
+- In tests and CI, mock `SentenceTransformer.encode` and the Anthropic client to make runs fast and deterministic.

@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from app.config import settings
 from app.schemas.itinerary import ItineraryPlan
+from app.services.knowledge import kb
 
 client = Anthropic(api_key=settings.anthropic_api_key)
 
@@ -140,6 +141,16 @@ def generate_itinerary(destination: str, days: int, budget: float, trip_style: s
 
     weather_context = lookup_weather_context(destination)
     base_prompt = _build_prompt(destination, days, budget, trip_style, weather_context)
+
+    # Retrieval from knowledge base (RAG): fetch top related travel notes and append to the prompt
+    try:
+        results = kb.query(destination, top_k=5)
+        travel_notes = "\n".join([r.get("text", "") for r in results if r.get("text")])
+        if travel_notes:
+            base_prompt += "\n\nTravel knowledge (use when relevant): \n" + travel_notes
+    except Exception:
+        # Fail safe: if KB fails, continue without retrieval
+        travel_notes = None
     last_error: Optional[Exception] = None
 
     for attempt in range(3):
