@@ -20,3 +20,4 @@ pytest==8.3.3
 httpx==0.27.2
 langchain-core
 langgraph
+langchain-anthropic

@@ -2,7 +2,7 @@ import json
 import re
 from typing import Optional
 
-from anthropic import Anthropic
+from langchain_anthropic import ChatAnthropic
 from pydantic import ValidationError
 
 from app.config import settings
@@ -10,8 +10,13 @@ from app.schemas.itinerary import ItineraryPlan
 from app.services.knowledge import kb
 from app.services.weather import WeatherResult, lookup_weather_context
 
-client = Anthropic(api_key=settings.anthropic_api_key)
-
+def get_chat_model() -> ChatAnthropic:
+    return ChatAnthropic(
+        model=settings.anthropic_model,
+        api_key=settings.anthropic_api_key,
+        max_tokens=settings.anthropic_max_tokens,
+        temperature=settings.anthropic_temperature,
+    )
 
 def _extract_json_object(response_text: str) -> str:
     cleaned_text = response_text.strip()
@@ -64,6 +69,21 @@ Return ONLY valid JSON in this exact shape:
 Do not include markdown fences or any text outside the JSON object.
 """
 
+def _message_text(message) -> str:
+    content = message.content
+
+    if isinstance(content, str):
+        return content.strip()
+
+    text_parts = []
+
+    for block in content:
+        if isinstance(block, str):
+            text_parts.append(block)
+        elif isinstance(block, dict) and block.get("type") == "text":
+            text_parts.append(block.get("text", ""))
+
+    return "".join(text_parts).strip()
 
 def generate_itinerary(destination: str, days: int, budget: float, trip_style: str) -> list[dict]:
     """Generate a validated itinerary using Claude and a weather lookup context."""
@@ -71,7 +91,7 @@ def generate_itinerary(destination: str, days: int, budget: float, trip_style: s
     weather_context = lookup_weather_context(destination)
     base_prompt = _build_prompt(
         destination, days, budget, trip_style, weather_context)
-
+    model = get_chat_model()
     # Retrieval from knowledge base (RAG): fetch top related travel notes and append to the prompt
     try:
         results = kb.query(destination, top_k=5)
@@ -93,16 +113,8 @@ def generate_itinerary(destination: str, days: int, budget: float, trip_style: s
                 f"Validation error: {last_error}."
             )
 
-        message = client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=1200,
-            temperature=0,
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        response_text = "".join(
-            block.text for block in message.content if getattr(block, "type", None) == "text"
-        ).strip()
+        message = model.invoke(prompt)
+        response_text = _message_text(message)
 
         try:
             itinerary_plan = ItineraryPlan.model_validate_json(
