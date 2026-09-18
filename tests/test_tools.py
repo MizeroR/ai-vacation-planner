@@ -89,3 +89,32 @@ def test_knowledge_tool_returns_empty_list(monkeypatch):
     )
 
     assert result == []
+
+def test_pricing_tool_returns_estimate():
+    result = travel_tools.estimate_travel_cost.invoke(
+        {
+            "destination": "Paris",
+            "days": 5,
+            "budget": 1500,
+            "trip_style": "budget",
+        }
+    )
+
+    assert result["status"] == "available"
+    assert result["estimate"]["destination"] == "Paris"
+    assert result["estimate"]["daily_budget"] == 300
+    assert result["estimate"]["lodging"] == 525
+
+
+def test_pricing_tool_returns_invalid_for_bad_input():
+    result = travel_tools.estimate_travel_cost.invoke(
+        {
+            "destination": "Paris",
+            "days": 0,
+            "budget": 1500,
+            "trip_style": "budget",
+        }
+    )
+
+    assert result["status"] == "invalid"
+    assert "at least one day" in result["reason"]
