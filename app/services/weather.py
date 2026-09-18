@@ -1,17 +1,33 @@
 import json
+from datetime import date
 from typing import Optional
+
+from pydantic import BaseModel
 from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+class WeatherDay(BaseModel):
+    date: date
+    high_celsius: float | None = None
+    low_celsius: float | None = None
+    precipitation_probability: int | None = None
+    condition: str
+
+
+class WeatherResult(BaseModel):
+    destination: str
+    latitude: float
+    longitude: float
+    days: list[WeatherDay]
+    source: str = "Open-Meteo"
 
 def _fetch_json(url: str) -> dict:
     request = Request(url, headers={"User-Agent": "ai-vacation-planner/1.0"})
     with urlopen(request, timeout=10) as response:
         return json.loads(response.read().decode("utf-8"))
 
-
-def _weather_code_label(code: Optional[int]) -> str:
+def _weather_code_label(code: int | None) -> str:
     labels = {
         0: "clear",
         1: "mostly clear",
@@ -35,8 +51,7 @@ def _weather_code_label(code: Optional[int]) -> str:
 
     return labels.get(code, f"weather code {code}")
 
-
-def lookup_weather_context(destination: str) -> Optional[str]:
+def lookup_weather_context(destination: str) -> Optional[WeatherResult]:
     try:
         geocode_url = (
             "https://geocoding-api.open-meteo.com/v1/search?"
@@ -77,21 +92,49 @@ def lookup_weather_context(destination: str) -> Optional[str]:
         forecast_data = _fetch_json(forecast_url)
         daily = forecast_data.get("daily") or {}
 
+        dates = daily.get("time") or []
         temperatures_high = daily.get("temperature_2m_max") or []
         temperatures_low = daily.get("temperature_2m_min") or []
         precipitation = daily.get("precipitation_probability_max") or []
         weather_codes = daily.get("weather_code") or []
 
-        if not temperatures_high or not temperatures_low:
+        if not dates:
             return None
 
-        return (
-            f"{location.get('name', destination)} weather outlook: "
-            f"{_weather_code_label(weather_codes[0] if weather_codes else None)}, "
-            f"high {temperatures_high[0]}°C, "
-            f"low {temperatures_low[0]}°C, "
-            f"rain chance "
-            f"{precipitation[0] if precipitation else 'unknown'}%."
+        weather_days = []
+
+        for index, forecast_date in enumerate(dates):
+            weather_days.append(
+                WeatherDay(
+                    date=forecast_date,
+                    high_celsius=(
+                        temperatures_high[index]
+                        if index < len(temperatures_high)
+                        else None
+                    ),
+                    low_celsius=(
+                        temperatures_low[index]
+                        if index < len(temperatures_low)
+                        else None
+                    ),
+                    precipitation_probability=(
+                        precipitation[index]
+                        if index < len(precipitation)
+                        else None
+                    ),
+                    condition=_weather_code_label(
+                        weather_codes[index]
+                        if index < len(weather_codes)
+                        else None
+                    ),
+                )
+            )
+
+        return WeatherResult(
+            destination=location.get("name", destination),
+            latitude=location["latitude"],
+            longitude=location["longitude"],
+            days=weather_days,
         )
 
     except (
