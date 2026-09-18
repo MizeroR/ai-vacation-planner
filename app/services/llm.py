@@ -1,9 +1,6 @@
-import json
-import re
 from typing import Optional
 
 from langchain_anthropic import ChatAnthropic
-from pydantic import ValidationError
 
 from app.config import settings
 from app.schemas.itinerary import ItineraryPlan
@@ -18,20 +15,8 @@ def get_chat_model() -> ChatAnthropic:
         temperature=settings.anthropic_temperature,
     )
 
-def _extract_json_object(response_text: str) -> str:
-    cleaned_text = response_text.strip()
-    fenced_match = re.search(r"```(?:json)?\s*(.*?)```",
-                             cleaned_text, re.DOTALL | re.IGNORECASE)
-    if fenced_match:
-        cleaned_text = fenced_match.group(1).strip()
-
-    start_index = cleaned_text.find("{")
-    end_index = cleaned_text.rfind("}")
-    if start_index != -1 and end_index != -1 and end_index > start_index:
-        cleaned_text = cleaned_text[start_index: end_index + 1]
-
-    return cleaned_text
-
+def get_structured_model():
+    return get_chat_model().with_structured_output(ItineraryPlan)
 
 def _build_prompt(destination: str, days: int, budget: float, trip_style: str, weather_context: Optional[WeatherResult]) -> str:
     weather_text = (
@@ -69,59 +54,72 @@ Return ONLY valid JSON in this exact shape:
 Do not include markdown fences or any text outside the JSON object.
 """
 
-def _message_text(message) -> str:
-    content = message.content
-
-    if isinstance(content, str):
-        return content.strip()
-
-    text_parts = []
-
-    for block in content:
-        if isinstance(block, str):
-            text_parts.append(block)
-        elif isinstance(block, dict) and block.get("type") == "text":
-            text_parts.append(block.get("text", ""))
-
-    return "".join(text_parts).strip()
-
-def generate_itinerary(destination: str, days: int, budget: float, trip_style: str) -> list[dict]:
-    """Generate a validated itinerary using Claude and a weather lookup context."""
+def generate_itinerary(
+    destination: str,
+    days: int,
+    budget: float,
+    trip_style: str,
+) -> list[dict]:
+    """Generate an itinerary using Claude structured output."""
 
     weather_context = lookup_weather_context(destination)
     base_prompt = _build_prompt(
-        destination, days, budget, trip_style, weather_context)
-    model = get_chat_model()
-    # Retrieval from knowledge base (RAG): fetch top related travel notes and append to the prompt
+        destination,
+        days,
+        budget,
+        trip_style,
+        weather_context,
+    )
+
     try:
         results = kb.query(destination, top_k=5)
-        travel_notes = "\n".join([r.get("text", "")
-                                 for r in results if r.get("text")])
+        travel_notes = "\n".join(
+            result.get("text", "")
+            for result in results
+            if result.get("text")
+        )
+
         if travel_notes:
-            base_prompt += "\n\nTravel knowledge (use when relevant): \n" + \
-                travel_notes
+            base_prompt += (
+                "\n\nTravel knowledge (use when relevant):\n"
+                + travel_notes
+            )
     except Exception:
-        # Fail safe: if KB fails, continue without retrieval
-        travel_notes = None
+        pass
+
+    structured_model = get_structured_model()
     last_error: Optional[Exception] = None
 
     for attempt in range(3):
         prompt = base_prompt
+
         if attempt > 0 and last_error is not None:
             prompt += (
-                "\n\nThe previous response was invalid. Fix the schema exactly and return only valid JSON. "
-                f"Validation error: {last_error}."
+                "\n\nThe previous response failed validation. "
+                "Return a complete itinerary matching the required schema. "
+                f"Validation error: {last_error}"
             )
 
-        message = model.invoke(prompt)
-        response_text = _message_text(message)
-
         try:
-            itinerary_plan = ItineraryPlan.model_validate_json(
-                _extract_json_object(response_text))
-            return [day.model_dump() for day in itinerary_plan.days]
-        except (ValidationError, json.JSONDecodeError) as exc:
+            itinerary_plan = structured_model.invoke(prompt)
+
+            if isinstance(itinerary_plan, dict):
+                itinerary_plan = ItineraryPlan.model_validate(itinerary_plan)
+
+            if not isinstance(itinerary_plan, ItineraryPlan):
+                raise ValueError(
+                    "The structured model returned an unexpected response type."
+                )
+
+            return [
+                day.model_dump()
+                for day in itinerary_plan.days
+            ]
+
+        except Exception as exc:
             last_error = exc
 
     raise ValueError(
-        f"Claude did not return a valid structured itinerary after retries: {last_error}")
+        "Claude did not return a valid structured itinerary after retries: "
+        f"{last_error}"
+    )

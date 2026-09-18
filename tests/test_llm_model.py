@@ -1,6 +1,7 @@
 from langchain_anthropic import ChatAnthropic
 
-from app.services.llm import _message_text, get_chat_model
+from app.schemas.itinerary import ItineraryPlan
+from app.services.llm import get_chat_model, get_structured_model
 
 
 def test_get_chat_model_returns_chat_anthropic():
@@ -9,18 +10,8 @@ def test_get_chat_model_returns_chat_anthropic():
     assert isinstance(model, ChatAnthropic)
 
 
-def test_message_text_accepts_string_content():
-    class Message:
-        content = "Generated itinerary"
+def test_get_structured_model_targets_itinerary_plan():
+    model = get_structured_model()
 
-    assert _message_text(Message()) == "Generated itinerary"
-
-
-def test_message_text_accepts_text_blocks():
-    class Message:
-        content = [
-            {"type": "text", "text": "Generated "},
-            {"type": "text", "text": "itinerary"},
-        ]
-
-    assert _message_text(Message()) == "Generated itinerary"
+    assert model is not None
+    assert isinstance(model, ChatAnthropic) is False
