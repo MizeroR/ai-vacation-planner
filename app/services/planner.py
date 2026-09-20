@@ -113,5 +113,5 @@ def generate_planned_itinerary(
         raise
     except Exception as exc:
         raise PlannerUnavailable(
-            f"Planner failed to generate an itinerary: {exc}"
+            "The itinerary planner is temporarily unavailable."
         ) from exc

@@ -29,7 +29,16 @@ def search_travel_knowledge(query: str, top_k: int = 5) -> list[dict]:
     """Search the internal travel knowledge base for destination advice and travel tips."""
 
     bounded_top_k = max(1, min(top_k, 10))
-    results = kb.query(query, top_k=bounded_top_k)
+
+    try:
+        results = kb.query(query, top_k=bounded_top_k)
+    except Exception:
+        return [
+            {
+                "status": "unavailable",
+                "reason": "Travel knowledge is temporarily unavailable.",
+            }
+        ]
 
     return [
         {

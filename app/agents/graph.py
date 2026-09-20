@@ -6,6 +6,7 @@ from langgraph.prebuilt import ToolNode
 
 from app.agents.state import PlannerState
 from app.tools.travel import AVAILABLE_TRAVEL_TOOLS
+from app.config import settings
 
 
 def _planning_request(state: PlannerState) -> str:
@@ -19,12 +20,16 @@ def _planning_request(state: PlannerState) -> str:
     )
 
 
-def create_planner_graph(model: Any, max_steps: int = 4):
+def create_planner_graph(model: Any, max_steps: int | None = None):
     """Create a tool-using LangGraph planner.
 
     The model must support bind_tools() and invoke().
     """
-
+    effective_max_steps = (
+    max_steps
+    if max_steps is not None
+    else settings.agent_max_steps
+    )
     model_with_tools = model.bind_tools(AVAILABLE_TRAVEL_TOOLS)
     tool_node = ToolNode(AVAILABLE_TRAVEL_TOOLS)
 
@@ -38,8 +43,10 @@ def create_planner_graph(model: Any, max_steps: int = 4):
 
         next_step = state.get("steps", 0) + 1
 
-        if next_step > max_steps:
-            raise RuntimeError("Planner exceeded the maximum number of agent steps.")
+        if next_step > effective_max_steps:
+            raise RuntimeError(
+                "Planner exceeded the maximum number of agent steps."
+            )
 
         response = model_with_tools.invoke(messages)
 
@@ -52,7 +59,7 @@ def create_planner_graph(model: Any, max_steps: int = 4):
         last_message = state["messages"][-1]
 
         if getattr(last_message, "tool_calls", None):
-            if state.get("steps", 0) >= max_steps:
+            if state.get("steps", 0) >= effective_max_steps:
                 raise RuntimeError(
                     "Planner reached the maximum number of steps before completing."
                 )

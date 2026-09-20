@@ -10,9 +10,12 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-3-5-haiku-latest"
     anthropic_max_tokens: int = 1200
     anthropic_temperature: float = 0.0
+    agent_max_steps: int = 4
+    external_request_timeout_seconds: int = 10
 
     class Config:
-        env_file = ".env"
+        env_file = ".env",
+        extra="ignore",
 
 
 settings = Settings()
