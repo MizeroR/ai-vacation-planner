@@ -6,7 +6,7 @@ from app.models.trip import Trip
 from app.models.user import User
 from app.schemas.itinerary import ItineraryCreate, ItineraryGenerateAI, ItineraryResponse
 from app.core.dependencies import get_current_user
-from app.services.llm import generate_itinerary
+from app.services.planner import PlannerUnavailable, generate_planned_itinerary
 
 router = APIRouter(prefix="/itineraries", tags=["Itineraries"])
 
@@ -52,24 +52,48 @@ def get_itinerary(trip_id: int, db: Session = Depends(get_db), current_user: Use
     )
 
 
-@router.post("/generate", status_code=status.HTTP_201_CREATED, response_model=ItineraryResponse)
-def generate_ai_itinerary(body: ItineraryGenerateAI, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    trip = db.query(Trip).filter(Trip.id == body.trip_id, Trip.user_id == current_user.id).first()
+@router.post(
+    "/generate",
+    status_code=status.HTTP_201_CREATED,
+    response_model=ItineraryResponse,
+    summary="Generate an AI itinerary",
+    description=(
+        "Uses a LangGraph agent and travel tools to generate a validated itinerary."
+    ),
+)
+def generate_ai_itinerary(
+    body: ItineraryGenerateAI,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    trip = (
+        db.query(Trip)
+        .filter(
+            Trip.id == body.trip_id,
+            Trip.user_id == current_user.id,
+        )
+        .first()
+    )
+
     if not trip:
         raise HTTPException(status_code=404, detail="Trip not found")
 
     if db.query(Itinerary).filter(Itinerary.trip_id == body.trip_id).first():
-        raise HTTPException(status_code=400, detail="Itinerary already exists for this trip")
+        raise HTTPException(
+            status_code=400,
+            detail="Itinerary already exists for this trip",
+        )
 
     try:
-        ai_generated_days = generate_itinerary(
+        ai_generated_days = generate_planned_itinerary(
             destination=trip.destination,
             days=trip.days,
             budget=trip.budget,
             trip_style=trip.trip_style,
+            request=body.request,
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+    except PlannerUnavailable as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     itinerary = Itinerary(
         trip_id=body.trip_id,
@@ -82,6 +106,6 @@ def generate_ai_itinerary(body: ItineraryGenerateAI, db: Session = Depends(get_d
     return ItineraryResponse(
         trip_id=itinerary.trip_id,
         itinerary=itinerary.days,
-        message="Itinerary generated successfully by AI",
+        message="Itinerary generated successfully by AI agent",
         ai_generated=True,
     )

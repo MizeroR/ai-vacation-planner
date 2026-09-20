@@ -10,12 +10,20 @@ from app.config import settings
 
 
 class KnowledgeBase:
+    @property
+    def model(self) -> SentenceTransformer:
+        if self._model is None:
+            self._model = SentenceTransformer(self.model_name)
+
+        return self._model
+
     def __init__(self, storage_dir: Optional[str] = None):
         self.storage_dir = storage_dir or getattr(settings, "knowledge_base_dir", "data/kb")
         os.makedirs(self.storage_dir, exist_ok=True)
         self.embeddings_path = os.path.join(self.storage_dir, "embeddings.npy")
         self.meta_path = os.path.join(self.storage_dir, "metadata.json")
-        self.model = SentenceTransformer("all-MiniLM-L6-v2")
+        self._model = None
+        self.model_name = "all-MiniLM-L6-v2"
         self._embeddings = None
         self._metadata: List[Dict] = []
         self._nn = None
@@ -92,7 +100,13 @@ class KnowledgeBase:
         self._persist()
 
     def query(self, query_text: str, top_k: int = 3) -> List[Dict]:
-        if self._embeddings is None or self._embeddings.shape[0] == 0 or self._nn is None:
+        top_k = max(1, min(top_k, 10))
+
+        if (
+            self._embeddings is None
+            or self._embeddings.shape[0] == 0
+            or self._nn is None
+        ):
             return []
 
         q_emb = self.model.encode([query_text], show_progress_bar=False)
