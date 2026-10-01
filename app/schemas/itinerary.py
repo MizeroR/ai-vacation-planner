@@ -24,8 +24,15 @@ class ItineraryPlan(BaseModel):
 
 
 class ItineraryGenerateAI(BaseModel):
-    trip_id: int
-
+    trip_id: int = Field(
+        ...,
+        description="ID of the trip for which to generate an itinerary",
+    )
+    request: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="Additional travel preferences or constraints",
+    )
 
 class ItineraryResponse(BaseModel):
     trip_id: int

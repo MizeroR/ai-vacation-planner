@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 *.db
 .venv/
+.venv312/
 venv/
 .idea/
 .vscode/

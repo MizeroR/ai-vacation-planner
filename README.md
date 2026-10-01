@@ -1,6 +1,6 @@
 # AI Vacation Planner
 
-A FastAPI backend for planning trips and managing itineraries with JWT authentication.
+A FastAPI backend for planning trips and managing itineraries with JWT authentication, LangChain tools, and a LangGraph travel-planning workflow.
 
 ---
 
@@ -8,21 +8,31 @@ A FastAPI backend for planning trips and managing itineraries with JWT authentic
 
 ```
 app/
-├── main.py           # App entry point — registers routers and creates DB tables
-├── config.py         # Reads environment variables via pydantic-settings
-├── database.py       # SQLAlchemy engine, session factory, and Base class
-├── models/           # ORM table definitions (User, Trip, Itinerary)
-├── schemas/          # Pydantic request/response shapes
-├── routers/          # Route handlers grouped by domain
-├── services/         # Business logic — LLM integration
+├── agents/
+│   ├── graph.py      # LangGraph agent/tool workflow
+│   └── state.py      # Shared planner state
+├── main.py           # App entry point and router registration
+├── config.py         # Environment-backed settings
+├── database.py       # SQLAlchemy engine and sessions
+├── models/           # User, Trip, and Itinerary ORM models
+├── schemas/          # Pydantic request/response contracts
+├── routers/          # Auth, trip, itinerary, user, and KB routes
+├── services/
+│   ├── knowledge.py  # Local semantic RAG knowledge base
+│   ├── llm.py        # ChatAnthropic and structured output setup
+│   ├── planner.py    # Planner orchestration boundary
+│   ├── pricing.py    # Deterministic budget estimator
+│   └── weather.py    # Open-Meteo integration
+├── tools/
+│   └── travel.py     # Weather, RAG, and pricing LangChain tools
 └── core/
-    ├── security.py   # Password hashing and JWT encode/decode
-    └── dependencies.py  # get_current_user dependency (token → User)
+  ├── security.py   # Password hashing and JWT encode/decode
+  └── dependencies.py  # Authenticated-user dependency
 ```
 
 **Database:** SQLite (dev). Swap `DATABASE_URL` in `.env` for Postgres in production.  
 **Auth:** JWT Bearer tokens. Include `Authorization: Bearer <token>` on protected routes.  
-**LLM:** Claude API (Anthropic) for AI-powered itinerary generation.
+**LLM:** Claude through LangChain's Anthropic integration. LangGraph controls tool selection and execution.
 
 ---
 
@@ -44,9 +54,7 @@ pip install -r requirements.txt
 
 # 4. Configure environment
 cp .env.example .env
-# Edit .env and set:
-#  - SECRET_KEY: a strong random string
-#  - ANTHROPIC_API_KEY: get from https://console.anthropic.com
+# Edit .env and set a generated SECRET_KEY and your ANTHROPIC_API_KEY.
 
 # 5. Run the server
 uvicorn app.main:app --reload
@@ -128,7 +136,7 @@ curl -X POST http://localhost:8000/itineraries \
 curl -X POST http://localhost:8000/itineraries/generate \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"trip_id": 1}'
+  -d '{"trip_id": 1, "request": "Include weather-friendly activities and local food recommendations."}'
 ```
 
 Response:
@@ -160,36 +168,48 @@ Response:
 
 ---
 
-## LLM Integration
+## LLM and Agent Integration
 
-The backend uses **Claude (Anthropic's LLM)** to generate realistic, budget-conscious itineraries.
+The backend uses Claude through LangChain and LangGraph to generate realistic, budget-conscious itineraries.
 
-**How it works:**
+The generation flow is:
 
-1. User calls `POST /itineraries/generate` with just the `trip_id`
-2. Backend fetches trip details (destination, days, budget, style) from the database
-3. A detailed prompt is sent to Claude:
-  - Trip context (destination, days, budget)
-  - Weather context from a lightweight Open-Meteo lookup
-  - Constraints (stay within destination area, respect budget)
-  - Requirements (3-5 activities per day, include meals/rest)
-4. Claude generates structured JSON with `days`, `weather`, and nested activity objects
-5. The backend validates the response with Pydantic, retries on invalid output, and saves only validated data to the database
+1. The authenticated user submits a `trip_id` and optional natural-language request.
+2. The backend loads the user's trip details.
+3. LangGraph gives the model access to approved travel tools.
+4. The agent can call weather, internal travel knowledge, and budget-estimation tools.
+5. Tool results are returned to the agent as messages.
+6. A structured Claude model generates the final `ItineraryPlan`.
+7. Pydantic validates the itinerary before it is saved.
 
-**Prompt Strategy:**
+### Available Tools
 
-The prompt includes:
-- Clear trip context (destination, duration, budget constraints)
-- Guidelines to focus activities within the destination
-- Travel style consideration (budget, luxury, adventure, etc.)
-- Structured JSON output requirement to ensure parseable response
-- No plaintext instructions outside the JSON to avoid parsing errors
+| Tool | Purpose |
+| --- | --- |
+| `get_destination_weather` | Retrieves available Open-Meteo forecast data. |
+| `search_travel_knowledge` | Searches the local embedding-based travel knowledge base. |
+| `estimate_travel_cost` | Estimates budget allocation by travel style. |
 
-**Setup:**
+Weather and RAG failures return controlled unavailable results where possible. The agent also has a configurable maximum step count to prevent infinite tool loops.
 
-1. Get an API key from [console.anthropic.com](https://console.anthropic.com)
-2. Add it to your `.env` file: `ANTHROPIC_API_KEY=sk-ant-...`
-3. The system uses Claude 3.5 Sonnet for cost-effective, high-quality itineraries
+### Environment Configuration
+
+Create a root-level `.env` file. Keep it out of version control:
+
+```env
+DATABASE_URL=sqlite:///./vacation_planner.db
+SECRET_KEY=replace-with-a-generated-secret
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+ANTHROPIC_API_KEY=replace-with-your-anthropic-key
+ANTHROPIC_MODEL=claude-3-5-haiku-latest
+ANTHROPIC_MAX_TOKENS=1200
+ANTHROPIC_TEMPERATURE=0.0
+AGENT_MAX_STEPS=4
+EXTERNAL_REQUEST_TIMEOUT_SECONDS=10
+```
+
+Use `.env.example` as the shareable template. Never commit real API keys.
 
 ## Knowledge Base (RAG)
 
@@ -218,14 +238,28 @@ curl 'http://localhost:8000/kb/query?q=paris&k=3'
 ```
 
 How it integrates:
-- When generating an AI itinerary the server calls `kb.query(destination, top_k=3)` and appends the returned chunk texts to the LLM prompt under a `Travel knowledge` section. This gives Claude factual local context to improve suggestions.
+- The knowledge base is exposed to the LangGraph workflow through `search_travel_knowledge`.
+- Retrieved chunks and metadata are returned to the model as tool results.
+- The final structured generation uses that context when it is relevant.
 
 Live testing checklist
 - Start server: `uvicorn app.main:app --reload`
 - Register and login: get JWT token from `/auth/login`.
 - Seed the KB using `/kb/seed` (protected) and verify `/kb/query` returns seeded chunks.
-- Create a trip and call `/itineraries/generate` to confirm the LLM call succeeds and includes KB context in prompt.
+- Create a trip and call `/itineraries/generate` with an optional request to confirm the agent workflow succeeds.
 
 Notes
 - The KB stores embeddings and metadata under `data/kb/` by default. Do not commit large seeded data to the repository.
-- In tests and CI, mock `SentenceTransformer.encode` and the Anthropic client to make runs fast and deterministic.
+- Tests mock external model and provider calls so the suite does not require an API key or live network access.
+
+## Testing
+
+Tests are stored in the root-level `tests/` directory and cover schemas, tools, agent state, graph routing, planner orchestration, and reliability behavior.
+
+Run the complete suite from the repository root:
+
+```bash
+pytest -q
+```
+
+The tests should be committed and pushed with the application. They document expected behavior and allow reviewers or CI to verify the Phase 5 implementation. Keep only secrets and local environment files, such as `.env`, out of version control.
