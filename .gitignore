@@ -4,7 +4,11 @@ __pycache__/
 *.pyo
 *.db
 .venv/
+.venv312/
 venv/
 .idea/
 .vscode/
 .python-version
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
