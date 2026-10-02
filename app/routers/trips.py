@@ -8,10 +8,11 @@ from app.config import settings
 from app.database import get_db
 from app.models.trip import Trip
 from app.models.user import User
-from app.schemas.media import AudioResponse, SpeechResponse
+from app.schemas.media import AudioResponse, ImageAnalysisResponse, SpeechResponse
 from app.schemas.trip import TripCreate, TripUpdate, TripResponse
 from app.core.dependencies import get_current_user
-from app.services import speech, tts
+from app.services import image as image_service, speech, tts
+from app.services.image import ImageAnalysisError
 from app.services.speech import SpeechToTextError
 from app.services.tts import TextToSpeechError
 
@@ -144,6 +145,48 @@ async def generate_trip_voice_response(
     try:
         return tts.generate_audio(text)
     except TextToSpeechError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/{trip_id}/image", response_model=ImageAnalysisResponse)
+async def analyze_trip_image(
+    trip_id: int,
+    file: UploadFile = File(...),
+    request: str | None = Form(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    trip = db.query(Trip).filter(Trip.id == trip_id, Trip.user_id == current_user.id).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+
+    if file.size is not None and file.size > settings.max_image_upload_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Image exceeds the {settings.max_image_upload_bytes} byte limit.",
+        )
+
+    content_type = (file.content_type or "").lower()
+    allowed_types = {"image/jpeg", "image/png", "image/webp"}
+    filename = (file.filename or "trip-image.jpg").lower()
+    suffix = Path(filename).suffix.lower()
+    allowed_suffixes = {".jpg", ".jpeg", ".png", ".webp"}
+
+    if content_type not in allowed_types and suffix not in allowed_suffixes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported image format. Please upload JPG, PNG, or WEBP images.",
+        )
+
+    image_bytes = await file.read()
+
+    try:
+        return image_service.analyze_image(
+            image_bytes,
+            request=request,
+            destination=trip.destination,
+        )
+    except ImageAnalysisError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 

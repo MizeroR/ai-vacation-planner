@@ -42,3 +42,13 @@ def test_multimodal_request_accepts_trip_id_only():
 
     assert request.trip_id == 1
     assert request.request is None
+
+
+def test_image_analysis_response_accepts_optional_fields():
+    response = ImageAnalysisResponse(
+        description="A seaside cafe with colorful umbrellas.",
+        activities=["coffee stop", "boardwalk walk"],
+    )
+
+    assert response.destination is None
+    assert response.activities == ["coffee stop", "boardwalk walk"]
