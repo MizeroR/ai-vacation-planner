@@ -1,62 +1,91 @@
 # AI Vacation Planner
 
-A FastAPI backend for planning trips and managing itineraries with JWT authentication, LangChain tools, and a LangGraph travel-planning workflow.
+A FastAPI-based travel-planning backend with JWT auth, LangGraph tool use, structured itinerary generation, and optional multimodal inputs/outputs. It supports local voice transcription, local text-to-speech playback, image analysis, and optional external MCP tool integrations.
 
 ---
 
-## Architecture
+## Final Architecture
 
-```
+```text
 app/
 ├── agents/
-│   ├── graph.py      # LangGraph agent/tool workflow
-│   └── state.py      # Shared planner state
-├── main.py           # App entry point and router registration
-├── config.py         # Environment-backed settings
-├── database.py       # SQLAlchemy engine and sessions
-├── models/           # User, Trip, and Itinerary ORM models
-├── schemas/          # Pydantic request/response contracts
-├── routers/          # Auth, trip, itinerary, user, and KB routes
+│   ├── graph.py      # LangGraph orchestration and tool routing
+│   └── state.py      # Planner state contract for trip/context/tool results
+├── core/
+│   ├── dependencies.py  # Authenticated-user dependency
+│   └── security.py      # JWT and password helpers
+├── models/
+│   ├── itinerary.py
+│   ├── trip.py
+│   └── user.py
+├── routers/
+│   ├── auth.py
+│   ├── itineraries.py
+│   ├── kb.py
+│   ├── trips.py
+│   └── users.py
+├── schemas/
+│   ├── itinerary.py
+│   ├── media.py
+│   ├── trip.py
+│   └── user.py
 ├── services/
-│   ├── knowledge.py  # Local semantic RAG knowledge base
-│   ├── llm.py        # ChatAnthropic and structured output setup
+│   ├── image.py      # Vision-based image analysis for trip photos
+│   ├── knowledge.py  # Local semantic travel knowledge base
+│   ├── llm.py        # Anthropic chat and structured itinerary generation
+│   ├── mcp.py        # Optional external MCP client adapter
 │   ├── planner.py    # Planner orchestration boundary
 │   ├── pricing.py    # Deterministic budget estimator
-│   └── weather.py    # Open-Meteo integration
+│   ├── speech.py     # Local STT using faster-whisper
+│   ├── tts.py        # Local TTS generation using pyttsx3
+│   └── weather.py    # Open-Meteo forecast lookups
 ├── tools/
-│   └── travel.py     # Weather, RAG, and pricing LangChain tools
-└── core/
-  ├── security.py   # Password hashing and JWT encode/decode
-  └── dependencies.py  # Authenticated-user dependency
+│   └── travel.py     # LangChain tools for weather, knowledge, pricing, and MCP calls
+├── config.py         # Environment-backed settings
+├── database.py       # SQLAlchemy engine and session factory
+├── main.py           # App bootstrap and router registration
+├── __init__.py
+└── ...
 ```
 
-**Database:** SQLite (dev). Swap `DATABASE_URL` in `.env` for Postgres in production.  
-**Auth:** JWT Bearer tokens. Include `Authorization: Bearer <token>` on protected routes.  
-**LLM:** Claude through LangChain's Anthropic integration. LangGraph controls tool selection and execution.
+### Core stack
+- FastAPI for HTTP APIs
+- SQLAlchemy + SQLite for persistence
+- Pydantic models for validation and schema contracts
+- LangChain + LangGraph for tool-using planner orchestration
+- Anthropic Claude for structured trip planning and image analysis
+- Local Python services for STT/TTS and optional MCP tool access
+
+### Runtime flow
+1. Authenticated users create or update a trip.
+2. The planner graph decides whether to call local travel tools or an external MCP tool.
+3. Weather, pricing, knowledge-base, and MCP tool results are bundled back into the model context.
+4. Claude returns a structured itinerary plan that is validated before saving.
+5. Users can also upload voice or image files for natural multimodal trip input.
 
 ---
 
 ## Setup
 
-**Requirements:** Python 3.12+
+Requirements: Python 3.12+
 
 ```bash
 # 1. Clone and enter the project
 git clone https://github.com/MizeroR/ai-vacation-planner
 cd ai-vacation-planner
 
-# 2. Create virtual environment
+# 2. Create a virtual environment
 python3.12 -m venv .venv
 source .venv/bin/activate
 
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Configure environment
+# 4. Configure your environment
 cp .env.example .env
-# Edit .env and set a generated SECRET_KEY and your ANTHROPIC_API_KEY.
+# Edit .env and set your SECRET_KEY, ANTHROPIC_API_KEY, and any optional MCP settings.
 
-# 5. Run the server
+# 5. Run the API
 uvicorn app.main:app --reload
 ```
 
@@ -64,137 +93,9 @@ The database tables are created automatically on first startup.
 
 ---
 
-## API Docs
+## Environment configuration
 
-Interactive Swagger UI: http://localhost:8000/docs  
-ReDoc: http://localhost:8000/redoc
-
----
-
-## Endpoints
-
-| Method | Path                     | Auth | Description                          |
-| ------ | ------------------------ | ---- | ------------------------------------ |
-| POST   | `/auth/register`         | No   | Register a new user                  |
-| POST   | `/auth/login`            | No   | Login and get a JWT token            |
-| GET    | `/users/me`              | Yes  | View your profile                    |
-| POST   | `/trips`                 | Yes  | Create a trip                        |
-| GET    | `/trips`                 | Yes  | List your trips                      |
-| GET    | `/trips/{id}`            | Yes  | Get a single trip                    |
-| PUT    | `/trips/{id}`            | Yes  | Update a trip                        |
-| DELETE | `/trips/{id}`            | Yes  | Delete a trip                        |
-| POST   | `/itineraries`           | Yes  | Create a manual itinerary for a trip |
-| POST   | `/itineraries/generate`  | Yes  | Generate an AI itinerary for a trip  |
-| GET    | `/itineraries/{trip_id}` | Yes  | Get a trip's itinerary               |
-
----
-
-## Example Usage
-
-**Register**
-
-```bash
-curl -X POST http://localhost:8000/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email": "you@example.com", "username": "you", "password": "secret"}'
-```
-
-**Login**
-
-```bash
-curl -X POST http://localhost:8000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "you@example.com", "password": "secret"}'
-```
-
-**Create a Trip**
-
-```bash
-curl -X POST http://localhost:8000/trips \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"destination": "Paris", "days": 5, "budget": 1500, "trip_style": "budget"}'
-```
-
-**Create an Itinerary**
-
-```bash
-curl -X POST http://localhost:8000/itineraries \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "trip_id": 1,
-    "days": [
-      {"day": 1, "activities": ["Eiffel Tower", "Seine River Walk"]},
-      {"day": 2, "activities": ["Louvre Museum", "Montmartre"]}
-    ]
-  }'
-```
-
-**Generate AI Itinerary**
-```bash
-curl -X POST http://localhost:8000/itineraries/generate \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"trip_id": 1, "request": "Include weather-friendly activities and local food recommendations."}'
-```
-
-Response:
-```json
-{
-  "trip_id": 1,
-  "itinerary": [
-    {
-      "day": 1,
-      "weather": "mostly clear",
-      "activities": [
-        {"name": "Eiffel Tower visit", "notes": "Go early to avoid queues"},
-        {"name": "Seine River cruise", "notes": "Best near sunset"}
-      ]
-    },
-    {
-      "day": 2,
-      "weather": "partly cloudy",
-      "activities": [
-        {"name": "Louvre Museum", "notes": "Book a timed entry"},
-        {"name": "Montmartre walk", "notes": "Keep this lighter if rain is likely"}
-      ]
-    }
-  ],
-  "message": "Itinerary generated successfully by AI",
-  "ai_generated": true
-}
-```
-
----
-
-## LLM and Agent Integration
-
-The backend uses Claude through LangChain and LangGraph to generate realistic, budget-conscious itineraries.
-
-The generation flow is:
-
-1. The authenticated user submits a `trip_id` and optional natural-language request.
-2. The backend loads the user's trip details.
-3. LangGraph gives the model access to approved travel tools.
-4. The agent can call weather, internal travel knowledge, and budget-estimation tools.
-5. Tool results are returned to the agent as messages.
-6. A structured Claude model generates the final `ItineraryPlan`.
-7. Pydantic validates the itinerary before it is saved.
-
-### Available Tools
-
-| Tool | Purpose |
-| --- | --- |
-| `get_destination_weather` | Retrieves available Open-Meteo forecast data. |
-| `search_travel_knowledge` | Searches the local embedding-based travel knowledge base. |
-| `estimate_travel_cost` | Estimates budget allocation by travel style. |
-
-Weather and RAG failures return controlled unavailable results where possible. The agent also has a configurable maximum step count to prevent infinite tool loops.
-
-### Environment Configuration
-
-Create a root-level `.env` file. Keep it out of version control:
+Use `.env.example` as the baseline template. Keep real secrets out of version control.
 
 ```env
 DATABASE_URL=sqlite:///./vacation_planner.db
@@ -207,22 +108,175 @@ ANTHROPIC_MAX_TOKENS=1200
 ANTHROPIC_TEMPERATURE=0.0
 AGENT_MAX_STEPS=4
 EXTERNAL_REQUEST_TIMEOUT_SECONDS=10
+STT_MODEL=small
+TTS_ENGINE=pyttsx3
+TTS_VOICE=
+MAX_AUDIO_UPLOAD_BYTES=25000000
+MAX_IMAGE_UPLOAD_BYTES=10000000
+MCP_SERVER_URL=
 ```
 
-Use `.env.example` as the shareable template. Never commit real API keys.
+Notes:
+- `MCP_SERVER_URL` is optional. If empty, the app uses only its built-in local tools.
+- Local speech features rely on `faster-whisper` and `pyttsx3` and work without internet access.
+- The app is designed to run on Python 3.12 in the pinned environment used for the project.
+
+---
+
+## API docs
+
+Interactive Swagger UI: http://localhost:8000/docs  
+ReDoc: http://localhost:8000/redoc
+
+---
+
+## Endpoints
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| POST | `/auth/register` | No | Register a new user |
+| POST | `/auth/login` | No | Login and receive a JWT token |
+| GET | `/users/me` | Yes | View the authenticated user |
+| POST | `/trips` | Yes | Create a trip |
+| GET | `/trips` | Yes | List trips for the user |
+| GET | `/trips/{trip_id}` | Yes | Retrieve a trip |
+| PUT | `/trips/{trip_id}` | Yes | Update a trip |
+| DELETE | `/trips/{trip_id}` | Yes | Delete a trip |
+| POST | `/trips/{trip_id}/voice` | Yes | Upload audio and transcribe it |
+| POST | `/trips/{trip_id}/voice/response` | Yes | Convert text into spoken audio output |
+| POST | `/trips/{trip_id}/image` | Yes | Upload an image and analyze it for travel context |
+| POST | `/itineraries` | Yes | Create a manual itinerary |
+| POST | `/itineraries/generate` | Yes | Generate an AI trip itinerary |
+| GET | `/itineraries/{trip_id}` | Yes | Fetch an itinerary for a trip |
+| POST | `/kb/seed` | Protected | Seed the local knowledge base |
+| GET | `/kb/query` | No | Query local travel knowledge |
+
+---
+
+## Example usage
+
+### Register
+
+```bash
+curl -X POST http://localhost:8000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "username": "you", "password": "secret"}'
+```
+
+### Login
+
+```bash
+curl -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "password": "secret"}'
+```
+
+### Create a trip
+
+```bash
+curl -X POST http://localhost:8000/trips \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"destination": "Paris", "days": 5, "budget": 1500, "trip_style": "budget"}'
+```
+
+### Generate an itinerary
+
+```bash
+curl -X POST http://localhost:8000/itineraries/generate \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"trip_id": 1, "request": "Include weather-friendly activities and local food recommendations."}'
+```
+
+### Upload voice for transcription
+
+```bash
+curl -X POST http://localhost:8000/trips/1/voice \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@voice-note.wav" \
+  -F "request=Plan my trip around museums and food stops"
+```
+
+Example response:
+
+```json
+{
+  "text": "Plan my trip around museums and food stops",
+  "language": "en"
+}
+```
+
+### Generate spoken audio for itinerary text
+
+```bash
+curl -X POST http://localhost:8000/trips/1/voice/response \
+  -H "Authorization: Bearer <token>" \
+  -F "text=Welcome to Paris. Your itinerary includes the Louvre, Montmartre, and a Seine river walk."
+```
+
+Example response:
+
+```json
+{
+  "media_type": "audio/mpeg",
+  "filename": "speech-9d0a...mp3"
+}
+```
+
+### Upload an image for travel analysis
+
+```bash
+curl -X POST http://localhost:8000/trips/1/image \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@photo.jpg" \
+  -F "request=Describe the view and suggest activities"
+```
+
+Example response:
+
+```json
+{
+  "description": "A scenic harbor town with colorful buildings and bright blue water.",
+  "destination": "Amalfi",
+  "activities": ["harbor stroll", "boat ride", "cafe stop"]
+}
+```
+
+---
+
+## Planner and tool system
+
+The itinerary planner uses a LangGraph workflow with a bounded tool loop.
+
+### Local tools
+| Tool | Purpose |
+| --- | --- |
+| `get_destination_weather` | Fetch Open-Meteo forecast data for a destination |
+| `search_travel_knowledge` | Query the semantic local KB |
+| `estimate_travel_cost` | Estimate how a trip budget should be spread |
+| `call_external_mcp_tool` | Call an optional external MCP tool if configured |
+
+The planner keeps tool calls bounded with `AGENT_MAX_STEPS` to prevent infinite loops. Tool failures return explicit `status: unavailable` or `status: invalid` payloads instead of crashing the planner.
+
+### External MCP integration
+
+The app can optionally connect to an external MCP server by setting `MCP_SERVER_URL` in `.env`.
+
+When configured, the server can expose tools beyond the built-in local set, and the travel tool wrapper calls them through the configured MCP client adapter. This keeps the application modular while preserving a local fallback path when no MCP server is configured.
+
+---
 
 ## Knowledge Base (RAG)
 
-This project includes a lightweight, file-backed Semantic Knowledge Base (KB) used to store travel guides, local tips, FAQs, and destination notes. The KB is embedded with `sentence-transformers` and searched with `scikit-learn` NearestNeighbors. The server retrieves relevant KB chunks and includes them in prompts sent to the LLM (Retrieval-Augmented Generation).
+The application includes a lightweight, file-backed knowledge base for destination notes, travel tips, and itinerary guidance. It is embedded with `sentence-transformers` and retrieved with `scikit-learn` nearest-neighbor search.
 
-Files and endpoints:
-- Service: `app/services/knowledge.py` — `kb.add_documents(docs)` and `kb.query(q, top_k)`
-- Router: `POST /kb/seed` — seed/index documents (protected)
-- Router: `GET /kb/query?q=...&k=3` — return top-k chunks (unprotected)
+Files and routes:
+- Service: `app/services/knowledge.py`
+- Router: `POST /kb/seed`
+- Router: `GET /kb/query?q=...&k=3`
 
-Seeding example (protected):
-
-1. Register and login to get a token (see above). 2. Seed KB:
+Example seed request:
 
 ```bash
 curl -X POST http://localhost:8000/kb/seed \
@@ -231,35 +285,33 @@ curl -X POST http://localhost:8000/kb/seed \
   -d '[{"id":"paris-guide","title":"Paris tips","text":"Arrive early to the Louvre..."}]'
 ```
 
-Query example:
+Example query request:
 
 ```bash
 curl 'http://localhost:8000/kb/query?q=paris&k=3'
 ```
 
-How it integrates:
-- The knowledge base is exposed to the LangGraph workflow through `search_travel_knowledge`.
-- Retrieved chunks and metadata are returned to the model as tool results.
-- The final structured generation uses that context when it is relevant.
+This local KB is included in the planner prompt context when it is relevant, improving the quality and specificity of generated itineraries.
 
-Live testing checklist
-- Start server: `uvicorn app.main:app --reload`
-- Register and login: get JWT token from `/auth/login`.
-- Seed the KB using `/kb/seed` (protected) and verify `/kb/query` returns seeded chunks.
-- Create a trip and call `/itineraries/generate` with an optional request to confirm the agent workflow succeeds.
-
-Notes
-- The KB stores embeddings and metadata under `data/kb/` by default. Do not commit large seeded data to the repository.
-- Tests mock external model and provider calls so the suite does not require an API key or live network access.
+---
 
 ## Testing
 
-Tests are stored in the root-level `tests/` directory and cover schemas, tools, agent state, graph routing, planner orchestration, and reliability behavior.
+The repository includes tests covering schemas, travel tools, planner orchestration, speech flow, TTS flow, image upload analysis, and MCP tool integration.
 
-Run the complete suite from the repository root:
+Run the full suite from the project root:
 
 ```bash
-pytest -q
+.venv312/bin/python -m pytest -q
 ```
 
-The tests should be committed and pushed with the application. They document expected behavior and allow reviewers or CI to verify the Phase 5 implementation. Keep only secrets and local environment files, such as `.env`, out of version control.
+The project was validated against the Python 3.12 environment used in this repository, which is the supported configuration for the current dependency stack.
+
+---
+
+## Notes
+
+- The local speech stack is intentionally dependency-light and offline-friendly.
+- The MCP integration is optional and does not block local planner behavior when no server is configured.
+- Avoid checking in real API keys, database files, or generated media outputs.
+- The test suite is committed with the project and validates the expected behavior for the planner, speech, TTS, images, and MCP flows.
