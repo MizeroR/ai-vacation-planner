@@ -1,18 +1,19 @@
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
 from app.models.trip import Trip
 from app.models.user import User
-from app.schemas.media import SpeechResponse
+from app.schemas.media import AudioResponse, SpeechResponse
 from app.schemas.trip import TripCreate, TripUpdate, TripResponse
 from app.core.dependencies import get_current_user
-from app.services import speech
+from app.services import speech, tts
 from app.services.speech import SpeechToTextError
+from app.services.tts import TextToSpeechError
 
 router = APIRouter(prefix="/trips", tags=["Trips"])
 
@@ -102,6 +103,48 @@ def transcribe_trip_voice(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     finally:
         Path(temp_path).unlink(missing_ok=True)
+
+
+@router.post(
+    "/{trip_id}/voice/response",
+    response_model=AudioResponse,
+)
+@router.post(
+    "/{trip_id}/voice-response",
+    response_model=AudioResponse,
+)
+@router.post(
+    "/{trip_id}/speech",
+    response_model=AudioResponse,
+)
+async def generate_trip_voice_response(
+    trip_id: int,
+    request: Request,
+    text: str | None = Form(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    trip = db.query(Trip).filter(Trip.id == trip_id, Trip.user_id == current_user.id).first()
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+
+    if text is None:
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+        text = (payload or {}).get("text") or (payload or {}).get("request")
+
+    if not text or not text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No text was provided for the spoken response.",
+        )
+
+    try:
+        return tts.generate_audio(text)
+    except TextToSpeechError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.delete("/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
