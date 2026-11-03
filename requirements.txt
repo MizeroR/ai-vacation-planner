@@ -21,3 +21,6 @@ httpx==0.27.2
 langchain-core
 langgraph
 langchain-anthropic
+faster-whisper
+pyttsx3
+mcp

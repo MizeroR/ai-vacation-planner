@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     anthropic_temperature: float = 0.0
     agent_max_steps: int = 4
     external_request_timeout_seconds: int = 10
+    stt_model: str = "small"
+    tts_engine: str = "pyttsx3"
+    tts_voice: str | None = None
+    max_audio_upload_bytes: int = 25_000_000
+    max_image_upload_bytes: int = 10_000_000
+    mcp_server_url: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

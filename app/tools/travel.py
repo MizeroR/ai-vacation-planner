@@ -1,6 +1,7 @@
 from langchain_core.tools import tool
 
 from app.services.knowledge import kb
+from app.services.mcp import MCPConnectionError, call_mcp_tool
 from app.services.weather import lookup_weather_context
 from app.services.pricing import estimate_trip_cost
 
@@ -77,8 +78,23 @@ def estimate_travel_cost(
         "estimate": result.model_dump(),
     }
 
+@tool
+def call_external_mcp_tool(tool_name: str, arguments: dict | None = None) -> dict:
+    """Execute a tool exposed by the configured external MCP server when present."""
+
+    try:
+        return call_mcp_tool(tool_name, arguments or {})
+    except MCPConnectionError as exc:
+        return {
+            "status": "unavailable",
+            "tool": tool_name,
+            "reason": str(exc),
+        }
+
+
 AVAILABLE_TRAVEL_TOOLS = [
     get_destination_weather,
     search_travel_knowledge,
     estimate_travel_cost,
+    call_external_mcp_tool,
 ]

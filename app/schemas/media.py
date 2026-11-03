@@ -23,7 +23,7 @@ class AudioResponse(BaseModel):
 class ImageAnalysisResponse(BaseModel):
     description: str
     destination: str | None = None
-    activities: list[str] = []
+    activities: list[str] = Field(default_factory=list)
 
 
 class MultimodalTripRequest(BaseModel):
