@@ -331,6 +331,34 @@ Run the full suite from the project root:
 
 The project was validated against the Python 3.12 environment used in this repository, which is the supported configuration for the current dependency stack.
 
+### AI evaluation and golden dataset
+
+The versioned golden cases are in
+[`evaluations/datasets/itinerary_goldens.json`](./evaluations/datasets/itinerary_goldens.json).
+They cover varied destinations, durations, budgets, travel styles, and user
+preferences. The regular pytest suite validates dataset structure and tests the
+planner deterministically with mocked model responses; it does not make live
+LLM calls.
+
+Run DeepEval in a separate environment because its current Pydantic and MCP
+requirements are newer than the application's pinned runtime stack:
+
+```bash
+python3.12 -m venv .venv-eval
+source .venv-eval/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-evaluation.txt
+python -m evaluations.run_deepeval
+```
+
+The evaluation uses the configured Anthropic model to generate each itinerary
+and to judge it with DeepEval G-Eval. Set `ANTHROPIC_API_KEY` in `.env` first.
+Each generated itinerary is checked against the application’s Pydantic schema
+and trip duration before the quality judge runs. A case passes at a G-Eval
+score of 0.70 or higher; the command exits nonzero if any case fails. This
+evaluation makes live provider calls and may incur API cost, so it is kept
+separate from ordinary tests.
+
 ---
 
 ## Notes
