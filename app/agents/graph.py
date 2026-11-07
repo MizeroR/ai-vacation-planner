@@ -7,6 +7,7 @@ from langgraph.prebuilt import ToolNode
 from app.agents.state import PlannerState
 from app.tools.travel import AVAILABLE_TRAVEL_TOOLS
 from app.config import settings
+from app.services.observability import observe_llm_call, record_llm_usage
 
 
 def _planning_request(state: PlannerState) -> str:
@@ -48,7 +49,14 @@ def create_planner_graph(model: Any, max_steps: int | None = None):
                 "Planner exceeded the maximum number of agent steps."
             )
 
-        response = model_with_tools.invoke(messages)
+        with observe_llm_call(settings.anthropic_model, "agent") as span:
+            response = model_with_tools.invoke(messages)
+            record_llm_usage(
+                response,
+                span=span,
+                model=settings.anthropic_model,
+                phase="agent",
+            )
 
         return {
             "messages": [response],

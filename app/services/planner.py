@@ -2,8 +2,18 @@ from typing import Any
 
 from app.agents.graph import create_planner_graph
 from app.agents.state import build_initial_state
+from app.config import settings
 from app.schemas.itinerary import ItineraryDurationError, ItineraryPlan
-from app.services.llm import get_chat_model, get_structured_model
+from app.services.llm import (
+    _unpack_structured_response,
+    get_chat_model,
+    get_structured_model,
+)
+from app.services.observability import (
+    instrument_generation,
+    observe_llm_call,
+    record_llm_usage,
+)
 
 
 class PlannerError(Exception):
@@ -66,6 +76,7 @@ each with a non-empty name and optional notes.
 """
 
 
+@instrument_generation("agent")
 def generate_planned_itinerary(
     *,
     destination: str,
@@ -90,7 +101,15 @@ def generate_planned_itinerary(
 
         final_prompt = _build_final_prompt(planned_state)
         structured_model = get_structured_model()
-        itinerary_plan = structured_model.invoke(final_prompt)
+        with observe_llm_call(settings.anthropic_model, "structured_output") as span:
+            response = structured_model.invoke(final_prompt)
+            itinerary_plan, usage_response = _unpack_structured_response(response)
+            record_llm_usage(
+                usage_response,
+                span=span,
+                model=settings.anthropic_model,
+                phase="structured_output",
+            )
 
         if isinstance(itinerary_plan, dict):
             itinerary_plan = ItineraryPlan.model_validate(itinerary_plan)

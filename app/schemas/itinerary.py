@@ -7,6 +7,7 @@ class ItineraryActivity(BaseModel):
     name: str = Field(..., min_length=1)
     notes: Optional[str] = None
 
+class ItineraryPlanActivity(ItineraryActivity):
     @field_validator("name")
     @classmethod
     def strip_name(cls, value: str) -> str:
@@ -23,7 +24,7 @@ class ItineraryDay(BaseModel):
 
 
 class ItineraryPlanDay(ItineraryDay):
-    activities: list[ItineraryActivity] = Field(min_length=3, max_length=5)
+    activities: list[ItineraryPlanActivity] = Field(min_length=3, max_length=5)
 
 
 class ItineraryDurationError(ValueError):

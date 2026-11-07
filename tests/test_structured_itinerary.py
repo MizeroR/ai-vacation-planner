@@ -73,6 +73,61 @@ def test_structured_model_returns_valid_itinerary(monkeypatch):
     ]
 
 
+def test_structured_model_reads_plan_and_usage_from_raw_response(monkeypatch):
+    expected_plan = ItineraryPlan.model_validate(
+        {
+            "days": [
+                {
+                    "day": 1,
+                    "activities": [
+                        {"name": "Visit a museum"},
+                        {"name": "Walk through a garden"},
+                        {"name": "Try local food"},
+                    ],
+                }
+            ]
+        }
+    )
+    raw_response = type(
+        "RawResponse",
+        (),
+        {
+            "usage_metadata": {"input_tokens": 11, "output_tokens": 6},
+            "response_metadata": {},
+        },
+    )()
+    observed_usage = []
+
+    monkeypatch.setattr(
+        llm,
+        "get_structured_model",
+        lambda: FakeStructuredModel(
+            {"raw": raw_response, "parsed": expected_plan}
+        ),
+    )
+    monkeypatch.setattr(llm, "lookup_weather_context", lambda destination: None)
+    monkeypatch.setattr(llm.kb, "query", lambda query, top_k: [])
+    monkeypatch.setattr(
+        llm,
+        "record_llm_usage",
+        lambda response, **kwargs: observed_usage.append(
+            (response, kwargs["model"], kwargs["phase"])
+        ),
+    )
+
+    result = llm.generate_itinerary(
+        destination="Paris",
+        days=1,
+        budget=500,
+        trip_style="budget",
+    )
+
+    assert len(result) == 1
+    assert observed_usage == [
+        (raw_response, llm.settings.anthropic_model, "structured_output")
+    ]
+
+
 def test_structured_model_retries_after_failure(monkeypatch):
     expected_plan = ItineraryPlan.model_validate(
         {

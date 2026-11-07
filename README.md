@@ -114,12 +114,36 @@ TTS_VOICE=
 MAX_AUDIO_UPLOAD_BYTES=25000000
 MAX_IMAGE_UPLOAD_BYTES=10000000
 MCP_SERVER_URL=
+DATADOG_ENABLED=false
+DATADOG_SERVICE=ai-vacation-planner
+DATADOG_ENV=development
+DD_AGENT_HOST=localhost
+DD_TRACE_AGENT_PORT=8126
+DD_DOGSTATSD_PORT=8125
 ```
 
 Notes:
 - `MCP_SERVER_URL` is optional. If empty, the app uses only its built-in local tools.
+- Datadog tracing and metrics are disabled by default. To enable them, set `DATADOG_ENABLED=true` and configure the Datadog Agent host and ports above before starting the API.
 - Local speech features rely on `faster-whisper` and `pyttsx3` and work without internet access.
 - The app is designed to run on Python 3.12 in the pinned environment used for the project.
+
+### Datadog signals
+
+When enabled, the API reports request duration, status, and route; itinerary
+generation duration and outcome; LLM model, phase, and token counts when the
+provider returns usage metadata; and travel-tool calls and unavailable/invalid
+results. These are emitted as APM spans and DogStatsD metrics, including:
+
+- `vacation_planner.http.requests` and `vacation_planner.http.request.duration`
+- `vacation_planner.generations` and `vacation_planner.generation.duration`
+- `vacation_planner.llm.calls` and `vacation_planner.llm.tokens`
+- `vacation_planner.tools.calls` and `vacation_planner.tools.errors`
+
+Only route templates and bounded operational labels are used as metric tags.
+Request IDs are included on spans and returned in the `X-Request-ID` response
+header. Prompts, user identifiers, and API credentials are not sent as
+observability attributes.
 
 ---
 
