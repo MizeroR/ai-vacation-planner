@@ -2,7 +2,7 @@ from typing import Any
 
 from app.agents.graph import create_planner_graph
 from app.agents.state import build_initial_state
-from app.schemas.itinerary import ItineraryPlan
+from app.schemas.itinerary import ItineraryDurationError, ItineraryPlan
 from app.services.llm import get_chat_model, get_structured_model
 
 
@@ -61,7 +61,8 @@ knowledge-base, or pricing facts.
 
 Return a complete itinerary matching the ItineraryPlan schema.
 The itinerary must contain exactly {trip["days"]} day entries.
-Each day must contain activities with a name and optional notes.
+Number days sequentially starting at 1. Include 3-5 activities per day,
+each with a non-empty name and optional notes.
 """
 
 
@@ -99,10 +100,7 @@ def generate_planned_itinerary(
                 "The structured model returned an invalid itinerary response."
             )
 
-        if len(itinerary_plan.days) != days:
-            raise PlannerUnavailable(
-                "The generated itinerary does not match the trip duration."
-            )
+        itinerary_plan.validate_duration(days)
 
         return [
             day.model_dump()
@@ -111,6 +109,12 @@ def generate_planned_itinerary(
 
     except PlannerError:
         raise
+    except ItineraryDurationError as exc:
+        raise PlannerUnavailable(str(exc)) from exc
+    except ValueError as exc:
+        raise PlannerUnavailable(
+            "The structured model returned an invalid itinerary response."
+        ) from exc
     except Exception as exc:
         raise PlannerUnavailable(
             "The itinerary planner is temporarily unavailable."

@@ -29,7 +29,9 @@ class FakeStructuredModel:
                             {
                                 "name": "Visit the Louvre",
                                 "notes": "Go early",
-                            }
+                            },
+                            {"name": "Lunch at a cafe"},
+                            {"name": "Walk along the Seine"},
                         ],
                     }
                 ]
@@ -72,7 +74,9 @@ def test_generate_planned_itinerary_runs_tools_then_structured_generation(
                 {
                     "name": "Visit the Louvre",
                     "notes": "Go early",
-                }
+                },
+                {"name": "Lunch at a cafe", "notes": None},
+                {"name": "Walk along the Seine", "notes": None},
             ],
         }
     ]

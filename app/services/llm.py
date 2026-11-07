@@ -35,8 +35,9 @@ Generate a realistic itinerary that:
 1. Focuses only on places within {destination}
 2. Fits within the ${budget} budget
 3. Matches the {trip_style} travel style
-4. Has 3-5 activities per day
-5. Includes time for meals and rest
+4. Contains exactly {days} days, numbered sequentially starting at 1
+5. Has 3-5 activities per day, each with a non-empty name
+6. Includes time for meals and rest
 
 Return ONLY valid JSON in this exact shape:
 {{
@@ -45,7 +46,9 @@ Return ONLY valid JSON in this exact shape:
       "day": 1,
       "weather": "Short weather note or null",
       "activities": [
-        {{"name": "Activity name", "notes": "Optional short note"}}
+        {{"name": "First activity", "notes": "Optional short note"}},
+        {{"name": "Second activity", "notes": "Optional short note"}},
+        {{"name": "Third activity", "notes": "Optional short note"}}
       ]
     }}
   ]
@@ -110,6 +113,8 @@ def generate_itinerary(
                 raise ValueError(
                     "The structured model returned an unexpected response type."
                 )
+
+            itinerary_plan.validate_duration(days)
 
             return [
                 day.model_dump()
