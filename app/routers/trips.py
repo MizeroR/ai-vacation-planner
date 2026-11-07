@@ -109,14 +109,17 @@ def transcribe_trip_voice(
 @router.post(
     "/{trip_id}/voice/response",
     response_model=AudioResponse,
+    operation_id="generate_trip_voice_response",
 )
 @router.post(
     "/{trip_id}/voice-response",
     response_model=AudioResponse,
+    operation_id="generate_trip_voice_response_legacy",
 )
 @router.post(
     "/{trip_id}/speech",
     response_model=AudioResponse,
+    operation_id="generate_trip_speech_response_legacy",
 )
 async def generate_trip_voice_response(
     trip_id: int,

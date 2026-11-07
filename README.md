@@ -56,6 +56,16 @@ app/
 - Anthropic Claude for structured trip planning and image analysis
 - Local Python services for STT/TTS and optional MCP tool access
 
+### LLM integration
+
+The planner gathers bounded context from local weather, knowledge-base, and
+budget tools, with external MCP tools available when configured. It then asks
+the configured Anthropic model to return an `ItineraryPlan`; invalid or
+unavailable model responses fail the generation request rather than being
+saved as a successful itinerary. The Anthropic model, token limit, and
+temperature are configured through `ANTHROPIC_MODEL`,
+`ANTHROPIC_MAX_TOKENS`, and `ANTHROPIC_TEMPERATURE`.
+
 ### Runtime flow
 1. Authenticated users create or update a trip.
 2. The planner graph decides whether to call local travel tools or an external MCP tool.
@@ -144,6 +154,14 @@ Only route templates and bounded operational labels are used as metric tags.
 Request IDs are included on spans and returned in the `X-Request-ID` response
 header. Prompts, user identifiers, and API credentials are not sent as
 observability attributes.
+
+An importable dashboard definition is provided at
+[`observability/datadog-dashboard.json`](./observability/datadog-dashboard.json).
+Import it from Datadog's dashboard import flow after enabling instrumentation
+and sending metrics to a Datadog Agent. Its environment and service filters
+default to `development` and `ai-vacation-planner`; update them if your
+deployment uses different values. The dashboard will remain empty until the
+Agent receives data from the application.
 
 ---
 
@@ -330,6 +348,29 @@ Run the full suite from the project root:
 ```
 
 The project was validated against the Python 3.12 environment used in this repository, which is the supported configuration for the current dependency stack.
+
+The regular suite uses mocked provider and tool responses for deterministic,
+offline checks. It covers API behavior, schema validation, planner outcomes,
+and observability instrumentation. The live DeepEval run described below is
+opt-in and is not part of `pytest`.
+
+## Security and guardrails
+
+- Protected API operations use JWT authentication; trip and itinerary access
+  checks ownership against the authenticated user.
+- Passwords are stored as bcrypt hashes. Keep `SECRET_KEY` and
+  `ANTHROPIC_API_KEY` in local environment configuration and out of version
+  control.
+- Generated itineraries are validated for the requested trip duration,
+  sequential day numbering, 3–5 activities per day, and nonblank activity
+  names before they are saved.
+- The planner's tool loop is bounded by `AGENT_MAX_STEPS`. External requests
+  are bounded by request timeouts where supported, and unavailable tool
+  results do not become fabricated facts in the final itinerary.
+- Voice and image uploads have configurable size limits. Set these limits
+  appropriately for the deployment.
+- Observability emits operational metadata only: prompts, user identifiers,
+  and credentials are excluded from span attributes and metric tags.
 
 ### AI evaluation and golden dataset
 

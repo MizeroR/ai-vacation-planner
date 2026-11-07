@@ -1,0 +1,142 @@
+{
+  "title": "AI Vacation Planner",
+  "description": "Operational overview of API traffic, itinerary generation, LLM usage, and travel tool failures.",
+  "layout_type": "ordered",
+  "reflow_type": "fixed",
+  "is_read_only": false,
+  "notify_list": [],
+  "tags": [
+    "service:ai-vacation-planner"
+  ],
+  "template_variables": [
+    {
+      "name": "service",
+      "prefix": "service",
+      "default": "ai-vacation-planner"
+    },
+    {
+      "name": "env",
+      "prefix": "env",
+      "default": "development"
+    }
+  ],
+  "widgets": [
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "HTTP requests by outcome",
+        "show_legend": true,
+        "requests": [
+          {
+            "q": "sum:vacation_planner.http.requests{service:$service,env:$env} by {outcome}.as_count()",
+            "display_type": "line",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "HTTP request latency (p95, seconds)",
+        "show_legend": false,
+        "requests": [
+          {
+            "q": "p95:vacation_planner.http.request.duration{service:$service,env:$env}",
+            "display_type": "line",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "Itinerary generation duration (p95, seconds)",
+        "show_legend": true,
+        "requests": [
+          {
+            "q": "p95:vacation_planner.generation.duration{service:$service,env:$env} by {planner}",
+            "display_type": "line",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "LLM token usage by token type",
+        "show_legend": true,
+        "requests": [
+          {
+            "q": "sum:vacation_planner.llm.tokens{service:$service,env:$env} by {token_type}",
+            "display_type": "bars",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "LLM calls by model and phase",
+        "show_legend": true,
+        "requests": [
+          {
+            "q": "sum:vacation_planner.llm.calls{service:$service,env:$env} by {model,phase}.as_count()",
+            "display_type": "line",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "timeseries",
+        "title": "LLM and travel-tool errors",
+        "show_legend": true,
+        "requests": [
+          {
+            "q": "sum:vacation_planner.llm.errors{service:$service,env:$env} by {model,phase}.as_count()",
+            "display_type": "line",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
+          },
+          {
+            "q": "sum:vacation_planner.tools.errors{service:$service,env:$env} by {tool,status}.as_count()",
+            "display_type": "line",
+            "style": {
+              "palette": "warm",
+              "line_type": "dashed",
+              "line_width": "normal"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
