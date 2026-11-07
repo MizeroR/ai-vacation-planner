@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from fastapi.testclient import TestClient
 
 from app.core.dependencies import get_current_user
@@ -36,7 +38,10 @@ def _seed_trip(email: str = "image@example.com"):
             db.commit()
             db.refresh(trip)
 
-        return user, trip
+        return (
+            SimpleNamespace(id=user.id),
+            SimpleNamespace(id=trip.id),
+        )
     finally:
         db.close()
 

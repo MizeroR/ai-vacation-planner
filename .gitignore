@@ -3,9 +3,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.db
-.venv/
 .venv312/
-venv/
 .idea/
 .vscode/
 .python-version
