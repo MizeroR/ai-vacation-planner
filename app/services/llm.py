@@ -17,7 +17,6 @@ def get_chat_model() -> ChatAnthropic:
         model=settings.anthropic_model,
         api_key=settings.anthropic_api_key,
         max_tokens=settings.anthropic_max_tokens,
-        temperature=settings.anthropic_temperature,
     )
 
 def get_structured_model():

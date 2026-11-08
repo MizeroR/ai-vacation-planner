@@ -1,14 +1,15 @@
+import argparse
 import json
 from pathlib import Path
 
 from deepeval.dataset import EvaluationDataset, Golden
 from deepeval.metrics import GEval
-from deepeval.models import AnthropicModel
 from deepeval.test_case import LLMTestCase, SingleTurnParams
 
 from app.config import settings
 from app.schemas.itinerary import ItineraryPlan
 from app.services.planner import generate_planned_itinerary
+from evaluations.judge import JsonSchemaAnthropicModel
 
 
 DATASET_PATH = Path(__file__).parent / "datasets" / "itinerary_goldens.json"
@@ -46,15 +47,32 @@ def _read_goldens() -> EvaluationDataset:
     return EvaluationDataset(goldens=goldens)
 
 
-def run_evaluation() -> bool:
+def _select_goldens(
+    goldens: list[Golden],
+    case_id: str | None,
+) -> list[Golden]:
+    if case_id is None:
+        return goldens
+
+    selected = [golden for golden in goldens if golden.id == case_id]
+    if not selected:
+        valid_ids = ", ".join(golden.id for golden in goldens)
+        raise ValueError(
+            f"Unknown evaluation case '{case_id}'. Choose one of: {valid_ids}"
+        )
+    return selected
+
+
+def run_evaluation(case_id: str | None = None) -> bool:
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is required to run AI evaluations.")
 
     dataset = _read_goldens()
-    judge = AnthropicModel(
+    goldens = _select_goldens(dataset.goldens, case_id)
+
+    judge = JsonSchemaAnthropicModel(
         model=settings.anthropic_model,
         api_key=settings.anthropic_api_key,
-        temperature=0,
     )
     quality_metric = GEval(
         name="Itinerary quality",
@@ -76,7 +94,7 @@ def run_evaluation() -> bool:
     )
 
     all_passed = True
-    for golden in dataset.goldens:
+    for golden in goldens:
         metadata = golden.additional_metadata
         trip = metadata["trip"]
         itinerary_days = generate_planned_itinerary(
@@ -112,4 +130,10 @@ def run_evaluation() -> bool:
 
 
 if __name__ == "__main__":
-    raise SystemExit(0 if run_evaluation() else 1)
+    parser = argparse.ArgumentParser(description="Run itinerary DeepEval cases.")
+    parser.add_argument(
+        "--case-id",
+        help="Run only one golden case as a live smoke evaluation.",
+    )
+    arguments = parser.parse_args()
+    raise SystemExit(0 if run_evaluation(arguments.case_id) else 1)

@@ -62,9 +62,10 @@ The planner gathers bounded context from local weather, knowledge-base, and
 budget tools, with external MCP tools available when configured. It then asks
 the configured Anthropic model to return an `ItineraryPlan`; invalid or
 unavailable model responses fail the generation request rather than being
-saved as a successful itinerary. The Anthropic model, token limit, and
-temperature are configured through `ANTHROPIC_MODEL`,
-`ANTHROPIC_MAX_TOKENS`, and `ANTHROPIC_TEMPERATURE`.
+saved as a successful itinerary. Configure the Anthropic model and token limit
+through `ANTHROPIC_MODEL` and `ANTHROPIC_MAX_TOKENS`.
+Requests leave sampling temperature unset because current Anthropic models
+may reject that parameter; the selected model uses its default behavior.
 
 ### Runtime flow
 1. Authenticated users create or update a trip.
@@ -113,9 +114,8 @@ SECRET_KEY=replace-with-a-generated-secret
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 ANTHROPIC_API_KEY=replace-with-your-anthropic-key
-ANTHROPIC_MODEL=claude-3-5-haiku-latest
+ANTHROPIC_MODEL=claude-haiku-5-5
 ANTHROPIC_MAX_TOKENS=1200
-ANTHROPIC_TEMPERATURE=0.0
 AGENT_MAX_STEPS=4
 EXTERNAL_REQUEST_TIMEOUT_SECONDS=10
 STT_MODEL=small
@@ -392,8 +392,17 @@ pip install -r requirements-evaluation.txt
 python -m evaluations.run_deepeval
 ```
 
+For a lower-cost live smoke run, evaluate a single golden case first:
+
+```bash
+python -m evaluations.run_deepeval --case-id paris-budget-museums
+```
+
 The evaluation uses the configured Anthropic model to generate each itinerary
-and to judge it with DeepEval G-Eval. Set `ANTHROPIC_API_KEY` in `.env` first.
+and to judge it with DeepEval G-Eval. The Anthropic judge requires a complete
+JSON score and reason; if its first response is malformed, the runner requests
+one corrected response and then reports a clear error if it remains invalid.
+Set `ANTHROPIC_API_KEY` in `.env` first.
 Each generated itinerary is checked against the application’s Pydantic schema
 and trip duration before the quality judge runs. A case passes at a G-Eval
 score of 0.70 or higher; the command exits nonzero if any case fails. This

@@ -8,6 +8,7 @@ def test_get_chat_model_returns_chat_anthropic():
     model = get_chat_model()
 
     assert isinstance(model, ChatAnthropic)
+    assert model.temperature is None
 
 
 def test_get_structured_model_targets_itinerary_plan():

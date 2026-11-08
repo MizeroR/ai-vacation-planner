@@ -78,7 +78,6 @@ def analyze_image(
         response = client.messages.create(
             model=settings.anthropic_model,
             max_tokens=settings.anthropic_max_tokens,
-            temperature=settings.anthropic_temperature,
             messages=[
                 {
                     "role": "user",

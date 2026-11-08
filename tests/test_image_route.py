@@ -64,6 +64,36 @@ def test_analyze_image_returns_structured_travel_summary(monkeypatch):
     assert result.activities == ["sunset dinner", "beach walk"]
 
 
+def test_image_analysis_omits_temperature_parameter(monkeypatch):
+    observed = {}
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            observed.update(kwargs)
+            return SimpleNamespace(
+                content=[
+                    SimpleNamespace(
+                        text=(
+                            '{"description":"A harbor view.",'
+                            '"destination":"Amalfi",'
+                            '"activities":["harbor stroll"]}'
+                        )
+                    )
+                ]
+            )
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key):
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(image_service, "Anthropic", FakeAnthropic)
+
+    result = image_service.analyze_image(b"fake-image-bytes")
+
+    assert result.destination == "Amalfi"
+    assert "temperature" not in observed
+
+
 def test_trip_image_endpoint_analyzes_upload(monkeypatch):
     user, trip = _seed_trip()
     user_stub = type("UserStub", (), {"id": user.id})()
