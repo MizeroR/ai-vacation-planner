@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 *.db
 .venv312/
+.venv-eval/
 .idea/
 .vscode/
 .python-version
