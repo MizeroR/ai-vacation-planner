@@ -2,22 +2,22 @@
   "title": "AI Vacation Planner",
   "description": "Operational overview of API traffic, itinerary generation, LLM usage, and travel tool failures.",
   "layout_type": "ordered",
-  "reflow_type": "fixed",
+  "reflow_type": "auto",
   "is_read_only": false,
   "notify_list": [],
   "tags": [
-    "service:ai-vacation-planner"
+    "ai:vacation-planner"
   ],
   "template_variables": [
     {
       "name": "service",
       "prefix": "service",
-      "default": "ai-vacation-planner"
+      "defaults": ["ai-vacation-planner"]
     },
     {
       "name": "env",
       "prefix": "env",
-      "default": "development"
+      "defaults": ["development"]
     }
   ],
   "widgets": [

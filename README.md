@@ -163,6 +163,49 @@ default to `development` and `ai-vacation-planner`; update them if your
 deployment uses different values. The dashboard will remain empty until the
 Agent receives data from the application.
 
+#### Verify Datadog locally on macOS
+
+Use either the native Datadog Agent or a Docker-compatible runtime. Docker
+Desktop requires a supported macOS version; Colima on macOS versions earlier
+than 13 requires QEMU. The Docker route also requires the Docker Compose v2
+plugin.
+
+For Docker, enter the Datadog API key at the hidden prompt. It is passed to the
+Agent as an environment variable and is not stored in the repository:
+
+```bash
+read -s "DD_API_KEY?Datadog API key: "
+echo
+export DD_API_KEY
+export DD_SITE=datadoghq.com
+docker compose -f observability/docker-compose.datadog.yml up -d
+unset DD_API_KEY
+docker exec ai-vacation-planner-datadog-agent agent status
+```
+
+For the native macOS Agent, install the Datadog Agent package and configure
+`api_key` and `site: datadoghq.com` locally in
+`/opt/datadog-agent/etc/datadog.yaml`. Do not put the key in the application
+`.env`, commit it, or send it in chat. Start or restart the Agent using the
+Datadog Agent app or its `datadog-agent` command.
+
+In the local, untracked `.env`, set `DATADOG_ENABLED=true`,
+`DATADOG_SERVICE=ai-vacation-planner`, `DATADOG_ENV=development`,
+`DD_AGENT_HOST=127.0.0.1`, `DD_TRACE_AGENT_PORT=8126`, and
+`DD_DOGSTATSD_PORT=8125`. Restart the API, call `GET /`, make an unauthenticated
+request to verify failed-request metrics, and generate one itinerary to emit
+LLM and generation metrics. These actions can send live Anthropic requests.
+Never put the Datadog API key in the application `.env` or commit it.
+
+After allowing a few minutes for ingestion, find
+`vacation_planner.http.requests` in Metrics Explorer and
+`ai-vacation-planner` in APM. Import the dashboard JSON, use the `development`
+and `ai-vacation-planner` filters, and verify the HTTP and latency widgets
+display data. Capture screenshots of the populated dashboard and a representative
+trace for submission, with secrets and personal information excluded. Stop the
+Docker Agent when finished with
+`docker compose -f observability/docker-compose.datadog.yml down`.
+
 ---
 
 ## API docs
