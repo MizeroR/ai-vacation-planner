@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "paris-budget-museums",
+      "trip": {
+        "destination": "Paris",
+        "days": 2,
+        "budget": 700,
+        "trip_style": "budget"
+      },
+      "request": "Prioritize museums and affordable local food. Keep the schedule relaxed.",
+      "expected_requirements": [
+        "The itinerary has exactly 2 days numbered sequentially from 1.",
+        "Each day contains 3 to 5 named activities.",
+        "Activities are in Paris and reflect a budget-conscious travel style.",
+        "The request for museums, affordable local food, and a relaxed schedule is reflected."
+      ]
+    },
+    {
+      "id": "kyoto-culture-and-food",
+      "trip": {
+        "destination": "Kyoto",
+        "days": 3,
+        "budget": 1800,
+        "trip_style": "cultural"
+      },
+      "request": "Include temples, traditional arts, and vegetarian-friendly meal suggestions. Avoid overpacking each day.",
+      "expected_requirements": [
+        "The itinerary has exactly 3 days numbered sequentially from 1.",
+        "Each day contains 3 to 5 named activities.",
+        "Activities are in Kyoto and fit a cultural trip.",
+        "The itinerary reflects the temple, traditional arts, vegetarian meal, and relaxed pacing preferences."
+      ]
+    },
+    {
+      "id": "vancouver-outdoors-accessible",
+      "trip": {
+        "destination": "Vancouver",
+        "days": 2,
+        "budget": 1200,
+        "trip_style": "standard"
+      },
+      "request": "Prefer accessible outdoor activities, parks, and waterfront views. Avoid strenuous hikes.",
+      "expected_requirements": [
+        "The itinerary has exactly 2 days numbered sequentially from 1.",
+        "Each day contains 3 to 5 named activities.",
+        "Activities are in Vancouver and fit the stated budget and standard travel style.",
+        "The itinerary prioritizes accessible parks and waterfront experiences and avoids strenuous hikes."
+      ]
+    },
+    {
+      "id": "lisbon-family-food",
+      "trip": {
+        "destination": "Lisbon",
+        "days": 3,
+        "budget": 1500,
+        "trip_style": "family"
+      },
+      "request": "Plan family-friendly sightseeing and local food stops. Avoid late-night activities and leave time for breaks.",
+      "expected_requirements": [
+        "The itinerary has exactly 3 days numbered sequentially from 1.",
+        "Each day contains 3 to 5 named activities.",
+        "Activities are in Lisbon and are suitable for a family trip within the stated budget.",
+        "The itinerary includes local food, avoids late-night activities, and leaves time for breaks."
+      ]
+    }
+  ]
+}

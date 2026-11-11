@@ -24,3 +24,5 @@ langchain-anthropic
 faster-whisper
 pyttsx3
 mcp
+ddtrace==3.14.4
+datadog==0.52.1

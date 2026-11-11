@@ -1,0 +1,14 @@
+services:
+  datadog-agent:
+    image: registry.datadoghq.com/agent:7
+    container_name: ai-vacation-planner-datadog-agent
+    environment:
+      DD_API_KEY: ${DD_API_KEY:?Set DD_API_KEY in your shell before starting the Agent}
+      DD_SITE: ${DD_SITE:-datadoghq.com}
+      DD_APM_ENABLED: "true"
+      DD_APM_NON_LOCAL_TRAFFIC: "true"
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"
+    ports:
+      - "8125:8125/udp"
+      - "8126:8126/tcp"
+    restart: unless-stopped

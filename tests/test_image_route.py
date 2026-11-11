@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from fastapi.testclient import TestClient
 
 from app.core.dependencies import get_current_user
@@ -36,7 +38,10 @@ def _seed_trip(email: str = "image@example.com"):
             db.commit()
             db.refresh(trip)
 
-        return user, trip
+        return (
+            SimpleNamespace(id=user.id),
+            SimpleNamespace(id=trip.id),
+        )
     finally:
         db.close()
 
@@ -57,6 +62,36 @@ def test_analyze_image_returns_structured_travel_summary(monkeypatch):
     assert result.description.startswith("A cliffside hotel")
     assert result.destination == "Santorini"
     assert result.activities == ["sunset dinner", "beach walk"]
+
+
+def test_image_analysis_omits_temperature_parameter(monkeypatch):
+    observed = {}
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            observed.update(kwargs)
+            return SimpleNamespace(
+                content=[
+                    SimpleNamespace(
+                        text=(
+                            '{"description":"A harbor view.",'
+                            '"destination":"Amalfi",'
+                            '"activities":["harbor stroll"]}'
+                        )
+                    )
+                ]
+            )
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key):
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(image_service, "Anthropic", FakeAnthropic)
+
+    result = image_service.analyze_image(b"fake-image-bytes")
+
+    assert result.destination == "Amalfi"
+    assert "temperature" not in observed
 
 
 def test_trip_image_endpoint_analyzes_upload(monkeypatch):

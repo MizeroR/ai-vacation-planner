@@ -5,6 +5,11 @@ from langchain_anthropic import ChatAnthropic
 from app.config import settings
 from app.schemas.itinerary import ItineraryPlan
 from app.services.knowledge import kb
+from app.services.observability import (
+    instrument_generation,
+    observe_llm_call,
+    record_llm_usage,
+)
 from app.services.weather import WeatherResult, lookup_weather_context
 
 def get_chat_model() -> ChatAnthropic:
@@ -12,11 +17,19 @@ def get_chat_model() -> ChatAnthropic:
         model=settings.anthropic_model,
         api_key=settings.anthropic_api_key,
         max_tokens=settings.anthropic_max_tokens,
-        temperature=settings.anthropic_temperature,
     )
 
 def get_structured_model():
-    return get_chat_model().with_structured_output(ItineraryPlan)
+    return get_chat_model().with_structured_output(ItineraryPlan, include_raw=True)
+
+
+def _unpack_structured_response(response):
+    if isinstance(response, dict) and "parsed" in response:
+        if response["parsed"] is None:
+            raise ValueError("The structured model did not return a parsed plan.")
+        return response["parsed"], response.get("raw", response)
+
+    return response, response
 
 def _build_prompt(destination: str, days: int, budget: float, trip_style: str, weather_context: Optional[WeatherResult]) -> str:
     weather_text = (
@@ -35,8 +48,9 @@ Generate a realistic itinerary that:
 1. Focuses only on places within {destination}
 2. Fits within the ${budget} budget
 3. Matches the {trip_style} travel style
-4. Has 3-5 activities per day
-5. Includes time for meals and rest
+4. Contains exactly {days} days, numbered sequentially starting at 1
+5. Has 3-5 activities per day, each with a non-empty name
+6. Includes time for meals and rest
 
 Return ONLY valid JSON in this exact shape:
 {{
@@ -45,7 +59,9 @@ Return ONLY valid JSON in this exact shape:
       "day": 1,
       "weather": "Short weather note or null",
       "activities": [
-        {{"name": "Activity name", "notes": "Optional short note"}}
+        {{"name": "First activity", "notes": "Optional short note"}},
+        {{"name": "Second activity", "notes": "Optional short note"}},
+        {{"name": "Third activity", "notes": "Optional short note"}}
       ]
     }}
   ]
@@ -54,6 +70,7 @@ Return ONLY valid JSON in this exact shape:
 Do not include markdown fences or any text outside the JSON object.
 """
 
+@instrument_generation("direct")
 def generate_itinerary(
     destination: str,
     days: int,
@@ -101,7 +118,18 @@ def generate_itinerary(
             )
 
         try:
-            itinerary_plan = structured_model.invoke(prompt)
+            with observe_llm_call(
+                settings.anthropic_model,
+                "structured_output",
+            ) as span:
+                response = structured_model.invoke(prompt)
+                itinerary_plan, usage_response = _unpack_structured_response(response)
+                record_llm_usage(
+                    usage_response,
+                    span=span,
+                    model=settings.anthropic_model,
+                    phase="structured_output",
+                )
 
             if isinstance(itinerary_plan, dict):
                 itinerary_plan = ItineraryPlan.model_validate(itinerary_plan)
@@ -110,6 +138,8 @@ def generate_itinerary(
                 raise ValueError(
                     "The structured model returned an unexpected response type."
                 )
+
+            itinerary_plan.validate_duration(days)
 
             return [
                 day.model_dump()

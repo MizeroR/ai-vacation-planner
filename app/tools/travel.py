@@ -4,9 +4,11 @@ from app.services.knowledge import kb
 from app.services.mcp import MCPConnectionError, call_mcp_tool
 from app.services.weather import lookup_weather_context
 from app.services.pricing import estimate_trip_cost
+from app.services.observability import instrument_tool
 
 
 @tool
+@instrument_tool("get_destination_weather")
 def get_destination_weather(destination: str) -> dict:
     """Get the current available weather forecast for a travel destination."""
 
@@ -26,6 +28,7 @@ def get_destination_weather(destination: str) -> dict:
 
 
 @tool
+@instrument_tool("search_travel_knowledge")
 def search_travel_knowledge(query: str, top_k: int = 5) -> list[dict]:
     """Search the internal travel knowledge base for destination advice and travel tips."""
 
@@ -52,6 +55,7 @@ def search_travel_knowledge(query: str, top_k: int = 5) -> list[dict]:
     ]
 
 @tool
+@instrument_tool("estimate_travel_cost")
 def estimate_travel_cost(
     destination: str,
     days: int,
@@ -79,6 +83,7 @@ def estimate_travel_cost(
     }
 
 @tool
+@instrument_tool("call_external_mcp_tool")
 def call_external_mcp_tool(tool_name: str, arguments: dict | None = None) -> dict:
     """Execute a tool exposed by the configured external MCP server when present."""
 
