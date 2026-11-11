@@ -5,6 +5,8 @@ from functools import wraps
 from time import perf_counter
 from typing import Any, Iterator
 
+from datadog import DogStatsd
+
 from app.config import settings
 
 if settings.datadog_enabled:
@@ -26,8 +28,6 @@ def _metric_client() -> Any:
     global _statsd
 
     if _statsd is None:
-        from datadog import DogStatsd
-
         _statsd = DogStatsd(
             host=settings.datadog_agent_host,
             port=settings.datadog_statsd_port,
