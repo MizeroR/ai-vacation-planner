@@ -15,17 +15,21 @@ def _combined_cost(costs: list[float | None]) -> float | None:
         return None
 
     total = sum(float(cost) for cost in known_costs)
-    if not any(hasattr(cost, "input_tokens") for cost in known_costs):
+    costs_with_tokens = [
+        cost for cost in known_costs if isinstance(cost, EvaluationCost)
+    ]
+    if not costs_with_tokens:
         return total
 
     input_tokens = sum(
-        getattr(cost, "input_tokens", 0) or 0 for cost in known_costs
+        cost.input_tokens or 0 for cost in costs_with_tokens
     )
     output_tokens = sum(
-        getattr(cost, "output_tokens", 0) or 0 for cost in known_costs
+        cost.output_tokens or 0 for cost in costs_with_tokens
     )
     cost_is_known = any(
-        getattr(cost, "value", cost) is not None for cost in known_costs
+        not isinstance(cost, EvaluationCost) or cost.value is not None
+        for cost in known_costs
     )
     return EvaluationCost(
         total if cost_is_known else None,
